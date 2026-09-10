@@ -18,8 +18,9 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 /// History: 1 initial; 2 stopword list read as words rather than lines.
 const LOGIC_REVISION: u32 = 2;
 
+/// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PipelineVersion([u8; 32]);
+pub struct PipelineVersion(#[serde(with = "crate::serde_hex")] [u8; 32]);
 
 impl PipelineVersion {
     /// Derived from crate version, logic revision, resolved parser versions, the
@@ -45,6 +46,16 @@ impl PipelineVersion {
     /// Short hex form for logs and filenames.
     pub fn short(&self) -> String {
         self.0[..6].iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+impl std::str::FromStr for PipelineVersion {
+    type Err = &'static str;
+
+    /// Parse the full 64-character hex form. Exists so a stored stamp can be compared
+    /// against a freshly computed one without going through serde.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::serde_hex::decode32(s).map(Self)
     }
 }
 
@@ -93,6 +104,17 @@ mod tests {
         res.wordlist_digest[0] ^= 0xff;
         assert_ne!(base, PipelineVersion::compute(&cfg, &res));
 
+    }
+
+    #[test]
+    fn round_trips_through_its_hex_form() {
+        use std::str::FromStr;
+        let v = PipelineVersion::compute(&Config::default(), &Resources::default());
+        assert_eq!(PipelineVersion::from_str(&v.to_string()).unwrap(), v);
+        assert_eq!(
+            serde_json::from_str::<PipelineVersion>(&serde_json::to_string(&v).unwrap()).unwrap(),
+            v
+        );
     }
 
     #[test]

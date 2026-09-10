@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Without it, spreadsheets emit column headers as topics and emails emit footers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProseParams {
     /// Minimum mean sentence length in tokens.
     pub min_mean_sentence_len: f32,
@@ -35,6 +36,7 @@ impl Default for ProseParams {
 /// Output is uncapped above these. A single global cutoff cannot serve both shape scores
 /// and YAKE scores — they are on unrelated scales with different distributions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Thresholds {
     pub identifier: f32,
     pub technical: f32,
@@ -60,6 +62,7 @@ impl Default for Thresholds {
 /// there are no labels, and a learned model would forfeit the reproducibility that
 /// motivates the whole design.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ShapeWeights {
     pub internal_caps: f32,
     pub digit_letter_mix: f32,
@@ -90,6 +93,7 @@ impl Default for ShapeWeights {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Documents shorter than this return [`crate::DocumentStatus::TooShort`].
     ///
@@ -123,6 +127,13 @@ pub struct Config {
     /// Run Lane 3 (YAKE), subject to the prose gate.
     pub enable_topical: bool,
     pub yake_ngram_max: usize,
+    /// Retain Lane 1's feature vector on every emitted keyword.
+    ///
+    /// Debug and tuning only, and **deliberately absent from [`Config::feed`]**: it
+    /// cannot change *which* keywords are emitted, only how much is reported about
+    /// them. Folding it into the version stamp would invalidate every cached keyword
+    /// set the moment someone ran `kep explain`.
+    pub retain_features: bool,
 }
 
 impl Default for Config {
@@ -138,6 +149,7 @@ impl Default for Config {
             enable_definitions: true,
             enable_topical: true,
             yake_ngram_max: 3,
+            retain_features: false,
         }
     }
 }
@@ -161,6 +173,10 @@ impl Config {
             enable_definitions,
             enable_topical,
             yake_ngram_max,
+            // Reporting-only; see the field's documentation. Bound explicitly rather
+            // than by `..` so a genuinely behavioural field added later cannot slip
+            // through unfed.
+            retain_features: _,
         } = self;
 
         h.update(&(*min_content_length as u64).to_le_bytes());

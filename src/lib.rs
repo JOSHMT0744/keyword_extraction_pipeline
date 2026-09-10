@@ -22,6 +22,7 @@ pub mod error;
 pub mod lanes;
 pub mod language;
 pub mod resources;
+pub mod serde_hex;
 pub mod tokenize;
 pub mod types;
 pub mod version;

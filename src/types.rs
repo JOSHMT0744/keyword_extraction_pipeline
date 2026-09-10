@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-use crate::version::PipelineVersion;
+use crate::{lanes::shape::ShapeFeatures, serde_hex, version::PipelineVersion};
 
 /// Which parser to use. Callers that know the format should say so; `Sniff` falls back
 /// to content inspection.
@@ -47,7 +47,16 @@ pub enum Origin {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Keyword {
-    /// The form as it appears in the canonical text.
+    /// A representative form as it appears in the canonical text.
+    ///
+    /// One `Keyword` covers one distinct `normalised` form, so a document containing both
+    /// `Chromatography` and `chromatography` yields a single record with three offsets,
+    /// not two records — they are one finding. `surface` is the first variant seen, which
+    /// means **`surface` is not guaranteed to equal the text at every offset**. The
+    /// invariant that does hold is on `normalised`: for every span in `offsets`,
+    /// `canonical[span]`, lowercased with internal whitespace collapsed, equals
+    /// `normalised`. Anything highlighting occurrences should use the offsets; anything
+    /// matching should use `normalised`.
     pub surface: String,
     /// NFKC + casefold. Never stemmed — stemming mangles alphanumeric identifiers.
     pub normalised: String,
@@ -61,6 +70,16 @@ pub struct Keyword {
     pub frequency: u32,
     /// Byte offsets into the canonical text, which [`crate::canonicalise`] regenerates.
     pub offsets: Vec<Range<usize>>,
+    /// The canonical expansion, when a definition lane resolved one: `SOP` carries
+    /// `Standard Operating Procedure`. Only ever set for [`Origin::Definition`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expansion: Option<String>,
+    /// Lane 1's retained feature vector, present only when [`crate::Config`]'s
+    /// `retain_features` is on. The plan calls Lane 1 "a transparent weighted sum with
+    /// stored components"; this is where the components are stored, so a score can be
+    /// accounted for rather than taken on trust.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub features: Option<ShapeFeatures>,
 }
 
 /// Why a document produced the keywords it did — including none.
@@ -99,9 +118,11 @@ pub struct Language {
 pub struct DocumentResult {
     pub status: DocumentStatus,
     pub pipeline_version: PipelineVersion,
-    /// blake3 over the raw input bytes.
+    /// blake3 over the raw input bytes. Serialised as lowercase hex.
+    #[serde(with = "serde_hex")]
     pub hash_exact: [u8; 32],
     /// blake3 over the canonical text. The natural cache key for everything downstream.
+    #[serde(with = "serde_hex::option")]
     pub hash_canonical: Option<[u8; 32]>,
     /// Characters of canonical text.
     pub own_content_length: usize,

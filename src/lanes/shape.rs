@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// The retained feature vector. Every value is in `[0, 1]`.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ShapeFeatures {
     pub internal_caps: f32,
     pub digit_letter_mix: f32,
@@ -117,6 +117,8 @@ pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
             score,
             rank: 0,
             offsets: c.offsets,
+            expansion: None,
+            features: cfg.retain_features.then_some(features),
         });
     }
 
@@ -491,13 +493,28 @@ mod tests {
     }
 
     #[test]
-    fn offsets_point_at_the_surface_form() {
+    fn every_offset_resolves_to_the_normalised_form() {
+        // Deliberately not `== surface`. One keyword covers one normalised form, so its
+        // offsets may point at differently-cased variants; `surface` is only the first
+        // one seen. Asserting against `surface` passes only while no fixture varies
+        // case, and would break the day one did.
         let text = "Batch DS-2291 was purified on the MabSelect SuRe column.";
         for k in run(text) {
             for span in &k.offsets {
-                assert_eq!(&text[span.clone()], k.surface, "offset does not resolve");
+                assert_eq!(text[span.clone()].to_lowercase(), k.normalised, "offset does not resolve");
             }
         }
+    }
+
+    #[test]
+    fn case_variants_are_one_finding_rather_than_several() {
+        let text = "Chromatography was used. The chromatography step ran with chromatography.";
+        let out = run(text);
+        let matches: Vec<&Keyword> =
+            out.iter().filter(|k| k.normalised == "chromatography").collect();
+        assert_eq!(matches.len(), 1, "case split one finding into several: {out:?}");
+        assert_eq!(matches[0].frequency, 3, "occurrences were lost: {:?}", matches[0]);
+        assert_eq!(matches[0].offsets.len(), 3);
     }
 
     #[test]
