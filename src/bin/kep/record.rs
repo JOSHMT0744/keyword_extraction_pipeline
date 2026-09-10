@@ -10,7 +10,8 @@
 //! The grouping happens here, borrowing from the result, so the library type is untouched.
 
 use keyword_extraction_pipeline::{
-    types::Language, DocumentResult, DocumentStatus, Keyword, Kind, PipelineVersion,
+    prose::ProseVerdict, types::Language, DocumentResult, DocumentStatus, Keyword, Kind,
+    PipelineVersion,
 };
 use serde::Serialize;
 
@@ -26,6 +27,10 @@ pub struct DocumentRecord<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<&'a Language>,
     pub language_confidence: f32,
+    /// Why the topical lane did or did not run. Travels with the record so an empty
+    /// `topical` list is never mistaken for a document with no topics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prose: Option<&'a ProseVerdict>,
     pub keywords: KeywordsByKind<'a>,
 }
 
@@ -74,6 +79,7 @@ impl<'a> DocumentRecord<'a> {
             own_content_length: result.own_content_length,
             language: result.language.as_ref(),
             language_confidence: result.language_confidence,
+            prose: result.prose.as_ref(),
             keywords: KeywordsByKind {
                 identifier: view.take(result, Kind::Identifier),
                 technical: view.take(result, Kind::Technical),

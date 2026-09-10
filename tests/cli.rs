@@ -195,18 +195,37 @@ fn explain_accounts_for_a_score_and_shows_what_a_lower_threshold_would_admit() {
 #[test]
 fn an_empty_kind_states_why_it_is_empty() {
     // A blank where keywords should be is the same silent-omission failure
-    // `DocumentStatus` exists to prevent, one level down.
+    // `DocumentStatus` exists to prevent, one level down. A spreadsheet has no topical
+    // keywords for a reason, and the reason has to be on the page.
     let (stdout, _, _) = run(&[
         "extract",
         "--format",
         "table",
         fixtures().join("simple.xlsx").to_str().unwrap(),
     ]);
-    assert!(stdout.contains("Technical"), "no technical row at all: {stdout}");
+    assert!(stdout.contains("Topical"), "no topical row at all: {stdout}");
+    assert!(
+        stdout.contains("prose gate") && stdout.contains("inherently tabular"),
+        "empty topical gave no reason: {stdout}"
+    );
     assert!(
         stdout.contains("threshold of 0.38"),
         "empty technical gave no reason: {stdout}"
     );
+}
+
+#[test]
+fn the_prose_verdict_travels_in_the_json_as_well_as_the_table() {
+    let (stdout, _, _) = run(&[
+        "extract",
+        "--format",
+        "jsonl",
+        fixtures().join("simple.xlsx").to_str().unwrap(),
+    ]);
+    let v: serde_json::Value = serde_json::from_str(stdout.lines().next().unwrap()).unwrap();
+    assert_eq!(v["prose"]["is_prose"], false);
+    assert_eq!(v["prose"]["reason"], "InherentlyTabular");
+    assert!(v["prose"]["table_line_ratio"].is_number());
 }
 
 #[test]

@@ -7,3 +7,4 @@
 
 pub mod definition;
 pub mod shape;
+pub mod topical;

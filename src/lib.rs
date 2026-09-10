@@ -18,6 +18,7 @@
 pub mod canonical;
 pub mod config;
 pub mod parse;
+pub mod prose;
 pub mod error;
 pub mod lanes;
 pub mod language;
@@ -78,6 +79,8 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
     }
 
     let (language, language_confidence) = language::detect(&canonical);
+    let english = language.as_ref().is_some_and(|l| l.fully_supported);
+    let prose = prose::assess(&canonical, raw.source, english, cfg, res);
 
     DocumentResult {
         status: DocumentStatus::Ok,
@@ -87,7 +90,8 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
         own_content_length,
         language,
         language_confidence,
-        keywords: run_lanes(&canonical, cfg, res),
+        keywords: run_lanes(&canonical, &prose, cfg, res),
+        prose: Some(prose),
     }
 }
 
@@ -103,7 +107,12 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
 /// as separate records distinguished by `origin`, not merged: an orthographic guess and
 /// a definitional match are different claims, and collapsing them would discard which
 /// one was made. A consumer wanting uniqueness deduplicates on `(normalised, kind)`.
-fn run_lanes(canonical: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
+fn run_lanes(
+    canonical: &str,
+    prose: &prose::ProseVerdict,
+    cfg: &Config,
+    res: &Resources,
+) -> Vec<Keyword> {
     let mut keywords = lanes::shape::extract(canonical, cfg, res);
 
     // Runs whatever the language. Schwartz–Hearst matches orthography, not vocabulary:
@@ -111,6 +120,15 @@ fn run_lanes(canonical: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
     // one that depends on an English stopword list, and it is gated accordingly.
     if cfg.enable_definitions {
         keywords.extend(lanes::definition::extract(canonical, cfg, res));
+    }
+
+    // Gated, unlike Lane 2. YAKE's features are computed against an English stopword
+    // list and English sentence rhythm; run on a spreadsheet it returns column headers
+    // and run on German it returns confident nonsense. Both are worse than nothing,
+    // because nothing is visibly nothing. The gate's reasoning travels with the result
+    // so an empty topical list can say why it is empty.
+    if cfg.enable_topical && prose.is_prose {
+        keywords.extend(lanes::topical::extract(canonical, cfg, res));
     }
 
     lanes::shape::rank_within_kind(&mut keywords);

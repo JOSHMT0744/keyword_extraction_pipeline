@@ -100,9 +100,13 @@ pub fn table(
     Ok(())
 }
 
-/// Why this kind produced nothing. Extended as lanes land — the prose gate's verdict
-/// replaces the placeholder below once Lane 3 exists.
-fn empty_reason(kind: Kind, _result: &DocumentResult, cfg: &Config) -> String {
+/// Why this kind produced nothing.
+///
+/// For `Topical` this is the payoff for carrying the prose gate's verdict on the result
+/// rather than consuming it: "no topical keywords" and "no topical keywords, because this
+/// is a spreadsheet" are different statements, and the second cannot be reconstructed
+/// after the fact.
+fn empty_reason(kind: Kind, result: &DocumentResult, cfg: &Config) -> String {
     match kind {
         Kind::Identifier => format!(
             "no candidate reached the identifier threshold of {:.2} (`kep explain` shows near-misses)",
@@ -112,7 +116,14 @@ fn empty_reason(kind: Kind, _result: &DocumentResult, cfg: &Config) -> String {
             "no candidate reached the technical threshold of {:.2} (`kep explain` shows near-misses)",
             cfg.thresholds.technical
         ),
-        Kind::Topical => "lane not built yet".to_string(),
+        Kind::Topical => match &result.prose {
+            Some(v) if !v.is_prose => format!("prose gate: {}", v.summary()),
+            Some(v) => format!(
+                "the document is prose, but no candidate scored at or below {:.2} ({} tokens)",
+                cfg.thresholds.topical, v.tokens
+            ),
+            None => "the document never reached the prose gate".to_string(),
+        },
     }
 }
 

@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{lanes::shape::ShapeFeatures, serde_hex, version::PipelineVersion};
+use crate::{lanes::shape::ShapeFeatures, prose::ProseVerdict, serde_hex, version::PipelineVersion};
 
 /// Which parser to use. Callers that know the format should say so; `Sniff` falls back
 /// to content inspection.
@@ -130,6 +130,14 @@ pub struct DocumentResult {
     pub language_confidence: f32,
     /// Flat, ranked, uncapped above a per-kind threshold. Filter on `kind`.
     pub keywords: Vec<Keyword>,
+    /// The prose gate's ruling on this document, and the measurements behind it.
+    ///
+    /// Carried rather than consumed so an empty `Topical` list can be reported *with its
+    /// reason*. "No topical keywords" and "no topical keywords, because this is a
+    /// spreadsheet" are different statements, and only the second is actionable.
+    /// `None` when the document never reached the gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prose: Option<ProseVerdict>,
 }
 
 impl DocumentResult {
@@ -149,6 +157,7 @@ impl DocumentResult {
             language: None,
             language_confidence: 0.0,
             keywords: Vec::new(),
+            prose: None,
         }
     }
 }
