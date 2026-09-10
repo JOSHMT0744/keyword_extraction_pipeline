@@ -14,7 +14,9 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 
 /// Bumped by hand only when extraction *logic* changes in a way not captured by config
 /// or dependency versions — a new lane, an altered canonicalisation step.
-const LOGIC_REVISION: u32 = 1;
+///
+/// History: 1 initial; 2 stopword list read as words rather than lines.
+const LOGIC_REVISION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PipelineVersion([u8; 32]);

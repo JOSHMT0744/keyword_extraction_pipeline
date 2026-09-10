@@ -37,10 +37,16 @@ pub struct Resources {
 }
 
 /// Strip comments and blank lines, preserving order — for the wordlist, order is rank.
+///
+/// Entries are split on whitespace rather than taken a line at a time. The wordlist is
+/// strictly one token per line, so this is a no-op there and rank order is untouched; the
+/// stopword list is written as space-separated runs, and reading *it* a line at a time
+/// silently produced eighteen multi-word entries that no lookup could ever match. That
+/// made `is_stopword` return false for every English stopword, including "the".
 fn entries(text: &str) -> impl Iterator<Item = String> + '_ {
     text.lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .flat_map(str::split_whitespace)
         .map(str::to_lowercase)
 }
 
@@ -112,6 +118,30 @@ impl Resources {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinary_stopwords_are_recognised() {
+        // Regression: the stopword file is space-separated, and reading it a line at a
+        // time produced eighteen unmatchable multi-word entries instead of ~250 words.
+        // Nothing failed loudly — Lane 1 happened to reject stopwords via the wordlist
+        // instead — but the prose gate and Lane 3 both measure stopword ratio, and both
+        // would have measured zero.
+        let res = Resources::default();
+        for word in ["the", "a", "is", "and", "of", "to", "in", "that", "it"] {
+            assert!(res.is_stopword(word), "{word} is not recognised as a stopword");
+        }
+        assert!(!res.is_stopword("chromatography"));
+    }
+
+    #[test]
+    fn the_wordlist_keeps_its_frequency_order() {
+        // The same parser reads both files; splitting on whitespace must not disturb
+        // rank, which is what the wordlist's line order *means*.
+        let small = Config { wordlist_size: 10, ..Config::default() };
+        let res = Resources::for_config(&small);
+        assert!(res.is_common_word("the"), "a top-10 word fell out of the cutoff");
+        assert!(!res.is_common_word("chromatography"));
+    }
 
     #[test]
     fn ordinary_business_vocabulary_is_common_at_the_default_cutoff() {
