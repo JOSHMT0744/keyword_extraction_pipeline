@@ -381,10 +381,17 @@ fn is_short_all_caps(text: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Built once. `Resources::default()` parses an eighty-thousand-word list, which in
+    /// a debug build costs far more than the code under test.
+    fn resources() -> &'static Resources {
+        static RESOURCES: std::sync::OnceLock<Resources> = std::sync::OnceLock::new();
+        RESOURCES.get_or_init(Resources::default)
+    }
+
     fn run(text: &str) -> Vec<Keyword> {
         // Mirrors `crate::extract`: the lane no longer ranks its own output, because
         // ranks span the lane union.
-        let mut out = extract(text, &Config::default(), &Resources::default());
+        let mut out = extract(text, &Config::default(), resources());
         rank_within_kind(&mut out);
         out
     }
@@ -545,9 +552,9 @@ mod tests {
 
     #[test]
     fn features_are_retained_and_sum_within_range() {
-        let res = Resources::default();
+        let res = resources();
         for t in ["DS-2291", "chromatography", "SOP", "MabSelect"] {
-            let s = features_for(t, 1, false, &res).score(&ShapeWeights::default());
+            let s = features_for(t, 1, false, res).score(&ShapeWeights::default());
             assert!((0.0..=1.0).contains(&s), "{t} scored {s}");
         }
     }
