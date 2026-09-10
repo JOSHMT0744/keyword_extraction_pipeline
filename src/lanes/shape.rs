@@ -122,7 +122,9 @@ pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
         });
     }
 
-    rank_within_kind(&mut out);
+    // Deliberately unranked. Ranks are dense within a kind and must span every lane's
+    // output, so the union is ranked once by the caller — see `crate::extract`. Ranking
+    // here as well would give Lane 2 its own colliding 0-based sequence.
     out
 }
 
@@ -322,19 +324,23 @@ fn classify(surface: &str) -> Kind {
     Kind::Technical
 }
 
-/// Rank descending by score within each kind.
+/// Rank descending by score within each kind, over the union of every lane's output.
 ///
 /// Never across kinds: shape scores and topical scores are on unrelated scales, and a
 /// single ranked list would be a fabricated comparison.
 pub fn rank_within_kind(keywords: &mut [Keyword]) {
     use std::collections::HashMap;
 
-    // Ties broken by normalised form so ordering is total and therefore reproducible.
+    // Ties broken by normalised form, then by origin, so ordering is total and therefore
+    // reproducible. Origin is load-bearing rather than cosmetic: lanes may emit the same
+    // surface — `SOP` from orthography and from `Standard Operating Procedure (SOP)` —
+    // and without it the two would order by whichever lane happened to run first.
     keywords.sort_by(|a, b| {
         (a.kind as u8)
             .cmp(&(b.kind as u8))
             .then(b.score.total_cmp(&a.score))
             .then(a.normalised.cmp(&b.normalised))
+            .then((a.origin as u8).cmp(&(b.origin as u8)))
     });
 
     let mut next: HashMap<u8, u32> = HashMap::new();
@@ -376,7 +382,11 @@ mod tests {
     use super::*;
 
     fn run(text: &str) -> Vec<Keyword> {
-        extract(text, &Config::default(), &Resources::default())
+        // Mirrors `crate::extract`: the lane no longer ranks its own output, because
+        // ranks span the lane union.
+        let mut out = extract(text, &Config::default(), &Resources::default());
+        rank_within_kind(&mut out);
+        out
     }
 
     fn surfaces(text: &str, kind: Kind) -> Vec<String> {

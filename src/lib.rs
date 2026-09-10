@@ -87,8 +87,26 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
         own_content_length,
         language,
         language_confidence,
-        keywords: lanes::shape::extract(&canonical, cfg, res),
+        keywords: run_lanes(&canonical, cfg, res),
     }
+}
+
+/// Run every enabled lane and rank the union.
+///
+/// Lanes are **complements, not substitutes** — Lane 1 emits identifiers and technical
+/// vocabulary, Lane 3 emits topical keyphrases — so their outputs are concatenated
+/// rather than selected between, and ranked once at the end. Ranking here rather than
+/// inside each lane is what keeps `rank` dense within a kind: two lanes ranking
+/// themselves would each start at 0 and collide.
+///
+/// Lanes may legitimately emit the same surface from different evidence. Those are kept
+/// as separate records distinguished by `origin`, not merged: an orthographic guess and
+/// a definitional match are different claims, and collapsing them would discard which
+/// one was made. A consumer wanting uniqueness deduplicates on `(normalised, kind)`.
+fn run_lanes(canonical: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
+    let mut keywords = lanes::shape::extract(canonical, cfg, res);
+    lanes::shape::rank_within_kind(&mut keywords);
+    keywords
 }
 
 /// Regenerate the canonical text a result's offsets refer to.
