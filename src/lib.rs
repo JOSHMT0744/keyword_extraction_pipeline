@@ -105,6 +105,14 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
 /// one was made. A consumer wanting uniqueness deduplicates on `(normalised, kind)`.
 fn run_lanes(canonical: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
     let mut keywords = lanes::shape::extract(canonical, cfg, res);
+
+    // Runs whatever the language. Schwartz–Hearst matches orthography, not vocabulary:
+    // `Bundesamt für Sicherheit (BSI)` resolves without a word of English. Lane 3 is the
+    // one that depends on an English stopword list, and it is gated accordingly.
+    if cfg.enable_definitions {
+        keywords.extend(lanes::definition::extract(canonical, cfg, res));
+    }
+
     lanes::shape::rank_within_kind(&mut keywords);
     keywords
 }

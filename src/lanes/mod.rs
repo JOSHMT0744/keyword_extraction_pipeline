@@ -5,4 +5,5 @@
 //! slots, so all of them run and the consumer filters on
 //! [`crate::Kind`] rather than any lane being selected out.
 
+pub mod definition;
 pub mod shape;

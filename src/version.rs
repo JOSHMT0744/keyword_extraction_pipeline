@@ -16,8 +16,9 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 /// or dependency versions — a new lane, an altered canonicalisation step.
 ///
 /// History: 1 initial; 2 stopword list read as words rather than lines;
-/// 3 ranking hoisted out of Lane 1 so it spans the lane union.
-pub const LOGIC_REVISION: u32 = 3;
+/// 3 ranking hoisted out of Lane 1 so it spans the lane union;
+/// 4 Lane 2 (Schwartz–Hearst definitions) added to the union.
+pub const LOGIC_REVISION: u32 = 4;
 
 /// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
