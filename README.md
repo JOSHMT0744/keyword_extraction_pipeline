@@ -20,8 +20,13 @@ curated gazetteer of schemes, and reproducibly enough to cache the result by has
 
 Corpus-relative ranking, storage, deduplication policy, triage scoring, and any
 "is this document worth a closer look" decision belong to the consuming system.
-Nothing measured here is evidence about downstream cost or relevance; the crate is
-evaluated intrinsically — did it extract the right things, reproducibly.
+
+**This library cannot prove the funnel works.** Where keyword extraction is used to
+shortlist documents before an expensive model-written summary, whether that
+shortlisting actually reduces spend is an extrinsic property of the *consuming*
+system, measurable only with real documents and a real query matcher. Nothing
+measured in this repository is evidence about that cost. The crate is evaluated
+intrinsically and only intrinsically — did it extract the right things, reproducibly.
 
 Out of scope by design: OCR (a scanned PDF is *reported* as such, not silently
 skipped), IDF or any cross-document statistic, stemming (it mangles alphanumeric
@@ -85,17 +90,44 @@ the one the offsets were computed against.
 `kep` re-extracts a directory of documents offline — for corpus passes and for
 eyeballing output during tuning.
 
-```
-kep <path>... [--pretty]
-```
+| Command | Purpose |
+|---------|---------|
+| `kep extract <path>...` | Walk paths and emit keywords. |
+| `kep explain <file>` | Account for one document's scores, feature by feature, including what a lower threshold would have admitted. |
+| `kep config` | Print the effective configuration as JSON, ready to edit and pass back with `--config-file`. |
+| `kep version` | Crate version, logic revision, wordlist extent, and the resulting `pipeline_version`. |
 
-Directories are walked. One JSON object per document is written to stdout (with an
-added `path` field), including for documents that yielded nothing. Exit status is
-non-zero if any path could not be read.
+**Data goes to stdout, commentary goes to stderr** — the run header, the status
+trailer and every warning — so `kep extract ./corpus > out.jsonl` is a clean file
+while the operator still sees what happened.
+
+`--format` is `table`, `jsonl`, `json` or `csv`, defaulting to `table` on a terminal
+and `jsonl` when redirected. The flag is authoritative and the header states which
+was used; the choice affects rendering only, never what was extracted.
 
 ```sh
-cargo run --release --bin kep -- ./corpus --pretty
+cargo run --release --bin kep -- extract ./corpus > keywords.jsonl
+cargo run --release --bin kep -- extract --format table --kind identifier ./corpus
+cargo run --release --bin kep -- explain ./corpus/report.pdf
 ```
+
+Exit status is `0` when every path was read, `1` when one could not be, and `2` under
+`--strict` if any document returned a status other than `Ok`. A `NoTextLayer` result
+is the pipeline working correctly, so by default it does not fail the run.
+
+### The CLI's JSON is a presentation format
+
+`kep`'s JSON is **not** a serde round-trip of `DocumentResult`, and
+`serde_json::from_str::<DocumentResult>` will not accept it. Two differences, both
+deliberate:
+
+- **Keywords are grouped by kind** (`identifier`, `technical`, `topical`) rather than
+  being one flat list. Scores are meaningless across kinds, and grouping makes that
+  structural instead of documentary.
+- **Digests are lowercase hex strings.** The library type serialises them as hex too,
+  so it does round-trip; the grouping is what the CLI adds on top.
+
+Use the library API if you want the typed result back.
 
 ## Pipeline
 
@@ -122,13 +154,37 @@ cargo run --release --bin kep -- ./corpus --pretty
 | Lane | `Origin` | `Kind` | Status |
 |------|----------|--------|--------|
 | **1 — shape & wordlist** | `Shape` | `Identifier`, `Technical` | **Implemented.** Transparent weighted sum over a retained feature vector (internal caps, digit/letter mix, separator segments, length, absence from the general English wordlist, short all-caps, in-document frequency). Deliberately not a classifier — there are no labels, and a learned model would forfeit reproducibility. Merges split multi-word product names (`MabSelect SuRe`) while refusing to merge title-case headings or runs of codes. |
-| **2 — definitions** | `Definition` | `Technical` | Designed, gated by `enable_definitions`; Schwartz–Hearst pass not yet wired in. |
-| **3 — topical** | `Statistic` | `Topical` | Designed, gated by `enable_topical` behind a deterministic prose heuristic; YAKE keyphrase extraction not yet wired in. |
+| **2 — definitions** | `Definition` | `Technical` | **Implemented**, gated by `enable_definitions`. Schwartz–Hearst (2003) implemented directly from the paper rather than pulled from a crate, so behaviour pins to `PipelineVersion`. Finds `long form (short form)` and `short form (long form)` within clause scope, emitting both halves with the canonical `expansion` attached. Runs whatever the language — the matching is orthographic, not lexical. Offsets record the *definition site*, not every occurrence; where Lane 1 also emitted the term, that record carries the full occurrence set. |
+| **3 — topical** | `Statistic` | `Topical` | **Implemented**, gated by `enable_topical` *and* the prose gate. YAKE (Campos et al., 2020) implemented directly from the paper — five per-term features (casing, position, frequency normalisation, relatedness to context, sentence dispersion) combined over contiguous n-grams up to `yake_ngram_max`. Corpus-blind by construction: every feature comes from the single document. Phrases are bounded by stopwords, punctuation and line breaks. Near-duplicate phrasings are collapsed. **The default `thresholds.topical` of 0.15 is an unvalidated guess** pending the keyphrase benchmark. |
 
 Scores are comparable **within** a `Kind` and meaningless across kinds (shape scores
 and YAKE scores are on unrelated scales). `rank` is 0-based within a kind; output is
 uncapped above a per-kind threshold so a consumer can impose its own top-N without
 re-extracting.
+
+YAKE's own scores are *lower is better*, which `thresholds.topical` reflects — it is an
+upper bound, not a floor. The emitted `score` is re-signed to `1/(1+s)` so that one
+ranking function serves every lane and higher always means a stronger claim.
+
+### The prose gate
+
+Lane 3 assumes running text. On a spreadsheet it emits column headers as topics; on an
+email footer it emits the disclaimer. Both are confident, plausible and wrong — worse
+than emitting nothing, because nothing is visibly nothing.
+
+`prose::assess` rules on each document using `ProseParams` (mean sentence length,
+stopword ratio, table-line ratio, minimum tokens), short-circuiting on formats that are
+inherently tabular and on non-English documents. **The verdict travels on
+`DocumentResult::prose`** rather than being consumed and discarded, so an empty
+`Topical` list always carries its reason:
+
+```
+Topical  —  prose gate: the format is inherently tabular
+            (mean sentence 2.2 tokens, 0% stopwords, 100% table-like lines, 9 tokens)
+```
+
+The measurements are reported whether or not they decided the outcome, so a threshold
+can be moved against real numbers rather than guessed at.
 
 ## Output
 
@@ -146,7 +202,31 @@ re-extracting.
 
 Each `Keyword` carries `surface`, `normalised` (NFKC + casefold, never stemmed),
 `kind`, `origin`, `score`, `rank`, `frequency`, and `offsets` (byte ranges into the
-canonical text).
+canonical text). Two optional fields are present only when they apply: `expansion`,
+the canonical long form when a definition lane resolved one, and `features`, Lane 1's
+retained feature vector when `Config::retain_features` is on.
+
+### Lanes may emit the same surface twice
+
+A term can be reached by more than one route — `SOP` from orthography, and again from
+`Standard Operating Procedure (SOP)`. **Those are kept as separate records
+distinguished by `origin`, not merged.** An orthographic guess and a definitional
+match are different claims about the same string, and collapsing them would discard
+which one was made.
+
+The cost is that `keywords` can contain duplicate surfaces within a `Kind`, and a
+consumer that counts naively will double-count. If you want uniqueness, deduplicate
+on `(normalised, kind)` keeping the record whose `origin` you trust most —
+`Definition` is the stronger evidence:
+
+```rust
+let mut seen = std::collections::HashSet::new();
+result.keywords.retain(|k| seen.insert((k.normalised.clone(), k.kind)));
+```
+
+`Origin::Definition` entries score `1.0` by construction: a definition is categorical
+evidence rather than another weighted vote. This is the one place two score scales
+coexist inside a single `Kind`, which is why `origin` is on every record.
 
 ## Configuration
 
@@ -203,6 +283,7 @@ judgement required:
 | `tests/parsing.rs` | Does the right text come out of each format? Fixtures are generated by `scripts/make_fixtures.py` using PyMuPDF — a different implementation from the reader under test, so a pass means two independent codebases agree. |
 | `tests/determinism.rs` | Is the reproducibility guarantee real? Repeated extraction of every fixture must be byte-identical. |
 | `tests/cross_format.rs` | Is canonicalisation silently format-dependent? The same content in PDF, docx and plain text should canonicalise to near-identical token sets. **Reported, not gated** — some divergence is legitimate. |
+| `tests/cli.rs` | Does the binary report every document, in a stable form, whatever the shell does to its stdout? Covers the JSONL contract, hex digests, exit codes, `--strict`, config resolution by file and by flag agreeing on one stamp, and that **every empty kind states why it is empty**. |
 
 ```sh
 cargo test
