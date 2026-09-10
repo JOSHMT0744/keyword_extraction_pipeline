@@ -17,7 +17,7 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 ///
 /// History: 1 initial; 2 stopword list read as words rather than lines;
 /// 3 ranking hoisted out of Lane 1 so it spans the lane union.
-const LOGIC_REVISION: u32 = 3;
+pub const LOGIC_REVISION: u32 = 3;
 
 /// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
