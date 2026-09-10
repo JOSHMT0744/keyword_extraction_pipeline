@@ -1,0 +1,17 @@
+From: alice@example.com
+To: bob@example.com
+Message-ID: <QQ7F3K2M@mail.example.com>
+Subject: Re: Batch DS-2291 release
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Confirmed, the column was regenerated per SOP-114.
+
+On Tue, Bob wrote:
+> Has batch DS-2291 been released yet?
+> The HEK293T culture is ready.
+>
+> > Original question about DS-2291 from earlier.
+
+-- 
+Alice Example | Process Development | example.com

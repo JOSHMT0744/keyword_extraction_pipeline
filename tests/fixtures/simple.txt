@@ -1,0 +1,5 @@
+Column Regeneration Notes
+
+Batch DS-2291 was purified on the MabSelect SuRe column. Cell line HEK293T
+was cultured according to SOP-114 revision 3. The chromatography step
+achieved the expected yield and the column was regenerated afterwards.
