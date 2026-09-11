@@ -1,0 +1,25 @@
+# register: minutes
+# regions: heading, prose, table, acronym_heading, prose
+---
+Minutes of the Weekly Operations Review
+
+Attendees discussed progress on the item raised under reference {{ID}}, and it was agreed
+that the timeline previously communicated would need to be revisited given the resourcing
+constraints described in the earlier briefing. A related concern, tracked separately as
+{{DIS}}, was noted as still open and was carried forward to the following meeting.
+
+The group also reviewed the outstanding actions from the prior session and confirmed that
+most had been closed out on schedule. One action remained blocked pending a decision from a
+different team, and ownership of the follow-up was reassigned accordingly.
+
+Action	Owner	Status
+{{ID}}	Operations	Open
+{{ID}}	Finance	Closed
+{{ID}}	Engineering	Open
+
+AGENDA {{ACR}}
+
+The chair reminded attendees that any new risk should be logged under the standard register
+before the next meeting, referencing {{DIS}} where relevant so that related items are not
+tracked twice. The meeting closed with no further business and the next session was
+scheduled for the same time the following week.

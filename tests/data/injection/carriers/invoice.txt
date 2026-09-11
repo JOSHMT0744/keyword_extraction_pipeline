@@ -1,0 +1,24 @@
+# register: invoice
+# regions: heading, prose, table, acronym_heading, prose
+---
+Invoice {{ID}}
+
+This invoice covers goods and services delivered under purchase order {{ID}}, issued
+against the master supply agreement currently in effect between the two parties. Payment is
+due within thirty days of the invoice date, and any query relating to the amounts below
+should reference invoice {{ID}} directly rather than the underlying purchase order.
+
+A credit note referencing {{DIS}} was issued the previous quarter and should be reconciled
+against the outstanding balance shown here before payment is submitted for approval.
+
+Item	Description	Amount
+{{ID}}	Consulting services	4,250.00
+{{ID}}	Materials and shipping	1,180.50
+{{ID}}	Software licence renewal	899.00
+
+REGISTRATION {{ACR}}
+
+The buyer should retain a copy of this invoice for their own records, and any dispute over
+the amounts charged must be raised within the standard notice period set out in the supply
+agreement. Reference {{DIS}} may be quoted when contacting accounts payable, and a revised
+statement will be issued if the dispute is upheld following review.

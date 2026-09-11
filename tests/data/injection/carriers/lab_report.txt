@@ -1,0 +1,28 @@
+# register: lab
+# regions: heading, prose, table, acronym_heading, prose
+---
+Column Regeneration Report
+
+The purification run used cell line {{ID}} cultured according to standard procedure. Buffer
+exchange was performed prior to loading, and the resin bed was equilibrated overnight before
+the sample was introduced. Reference batch {{DIS}} was consulted for comparison against the
+previous cycle's yield.
+
+The chromatography step proceeded without incident, and elution fractions were collected at
+regular intervals. Purity was assessed by the usual analytical panel, and the operator noted
+that regeneration efficiency remained within the expected range for this resin family.
+
+Batch	Cell Line	Yield
+{{ID}}	{{ID}}	91.4
+{{ID}}	{{ID}}	88.1
+{{ID}}	{{ID}}	93.0
+
+PROCEDURE {{ACR}}
+
+Every scientist on the team should confirm that the buffer has equilibrated before any
+sample is introduced, because a column that has not equilibrated will bind inconsistently.
+Where a run has been interrupted, the whole sequence should be restarted rather than
+resumed, since a partial regeneration leaves the bed in a state that no later step corrects.
+The record of each cycle is retained so that a drift in capacity can be seen developing
+rather than discovered at failure, and the reference document {{DIS}} was updated to reflect
+the current revision of this procedure.

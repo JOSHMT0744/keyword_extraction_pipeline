@@ -71,6 +71,15 @@ fn has_digit(text: &str) -> bool {
     text.chars().any(|c| c.is_ascii_digit())
 }
 
+fn is_all_caps(text: &str) -> bool {
+    text.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) && text.chars().any(char::is_alphabetic)
+}
+
+fn is_short_all_caps(text: &str) -> bool {
+    let len = text.chars().count();
+    (2..=6).contains(&len) && is_all_caps(text)
+}
+
 /// Assign a difficulty tier to a surface, by rule.
 ///
 /// Mirrors (but does not call — those functions are private) the exact structural checks
@@ -82,6 +91,30 @@ pub fn tier_of(surface: &str, res: &TierResources) -> Tier {
         // Bare numeral. `shape::is_candidate` rejects any token with no alphabetic
         // character outright — this can never be emitted, at any configuration.
         return Tier::Unreachable;
+    }
+
+    // A short all-caps surface (SOP, HPLC — 2 to 6 characters) has a SEPARATE path in
+    // the real pipeline, `shape::acronym_flags`: it is judged against
+    // `is_frequent_word` (acronym_wordlist_depth, default 20 000), not the ordinary
+    // `is_common_word` check every other branch below uses. Getting this wrong is not
+    // cosmetic — it was measured wrong on the first real run of this harness: naive
+    // wordlist lookup tiered `SOP` as HardReachable (it is actually easy, once promoted)
+    // and tiered a common-word acronym collision as Unreachable when the promotion path
+    // let it through anyway. The two are governed by acronym_wordlist_depth, not
+    // wordlist_size, hence a distinct branch here rather than folding into the checks
+    // below — this scheme is exactly why the plan calls for a separate, narrower sweep
+    // table for acronym_wordlist_depth (see the harness's sweep tool).
+    if is_short_all_caps(surface) {
+        let lower = surface.to_lowercase();
+        return if res.full.is_frequent_word(&lower) {
+            // Common enough even by acronym standards that it reads as shouting, not an
+            // acronym — the `CODE`/`TODAY` case `acronym_wordlist_depth` exists to catch.
+            Tier::Unreachable
+        } else {
+            // Promoted to an acronym: absent_from_wordlist + short_all_caps clears the
+            // technical threshold easily, with no wordlist_size dependence at all.
+            Tier::Easy
+        };
     }
 
     // Checked per word, not over the whole surface: `shape::has_internal_caps` is applied

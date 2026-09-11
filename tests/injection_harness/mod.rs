@@ -12,7 +12,10 @@
 //! other's exclusive items as unused.
 #![allow(dead_code)]
 
+pub mod carrier;
 pub mod data;
+pub mod rng;
+pub mod score;
 pub mod tiers;
 
 pub use tiers::{tier_of, Tier, TierResources};

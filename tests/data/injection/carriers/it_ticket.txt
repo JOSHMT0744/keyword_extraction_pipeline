@@ -1,0 +1,24 @@
+# register: it
+# regions: heading, prose, table, acronym_heading, prose
+---
+Support Ticket {{ID}}
+
+A user reported an issue while working through the workflow described in ticket {{ID}}, and
+the behaviour was confirmed on a clean environment before being escalated. The report
+references an earlier defect, {{DIS}}, which was closed as unrelated after investigation
+found the two symptoms had different root causes.
+
+Engineering picked up the ticket and reproduced the failure locally within the same day.
+The fix was straightforward once the root cause was understood, and a regression test was
+added so the same class of defect could not recur silently in a future release.
+
+Ticket	Component	Status
+{{ID}}	Authentication	Resolved
+{{ID}}	Billing	In progress
+{{ID}}	Reporting	Resolved
+
+ADVISORY {{ACR}}
+
+Reviewers should confirm the fix does not reintroduce the behaviour described in {{DIS}}
+before approving the change for release. Once approved, the ticket will be closed and the
+customer notified that the underlying issue has been resolved in the next scheduled update.
