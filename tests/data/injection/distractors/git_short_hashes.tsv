@@ -1,0 +1,33 @@
+# Injection source: This repository's own commit log
+# URL: (local: git log --format=%h)
+# Licence: n/a — repository metadata, not third-party content
+# Mined from: this repository's own commit log. Entries are the most recent
+# commits at generation time, unfiltered.
+# Register: it
+# Scheme: git-short-hash
+#
+# Columns: surface	register	scheme
+# The harness (tests/injection_harness/tiers.rs) computes difficulty tier from the
+# surface itself, at fixed wordlist depth — it is never read from this file.
+#
+# Regenerate with scripts/fetch_injection_tiers.sh
+0e18d7b	it	git-short-hash
+f973a28	it	git-short-hash
+532f373	it	git-short-hash
+9bfa075	it	git-short-hash
+2ea005b	it	git-short-hash
+e0d5232	it	git-short-hash
+588d5f7	it	git-short-hash
+ff6be68	it	git-short-hash
+7e0c2d1	it	git-short-hash
+4074c16	it	git-short-hash
+8315718	it	git-short-hash
+9fc45b2	it	git-short-hash
+c7fd728	it	git-short-hash
+8da6590	it	git-short-hash
+0f8606f	it	git-short-hash
+4cb2ed1	it	git-short-hash
+17a51da	it	git-short-hash
+11bfae9	it	git-short-hash
+a6d6bf1	it	git-short-hash
+ee7d8a6	it	git-short-hash

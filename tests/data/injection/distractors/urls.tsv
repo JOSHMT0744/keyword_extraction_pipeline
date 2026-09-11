@@ -1,0 +1,92 @@
+# Injection source: Generated from a fixed set of realistic path templates, not mined from any list
+# URL: n/a
+# Licence: n/a — generated data
+# Mined: 2026-09-11. GENERATED: realistic document-reference URLs, deterministic template x counter, not random.
+# Register: any
+# Scheme: url
+#
+# Columns: surface	register	scheme
+# The harness (tests/injection_harness/tiers.rs) computes difficulty tier from the
+# surface itself, at fixed wordlist depth — it is never read from this file.
+#
+# Regenerate with scripts/fetch_injection_tiers.sh
+https://example.com/docs/ref-1000	any	url
+https://example.com/docs/ref-1001	any	url
+https://example.com/docs/ref-1002	any	url
+https://example.com/docs/ref-1003	any	url
+https://example.com/docs/ref-1004	any	url
+https://example.com/docs/ref-1005	any	url
+https://example.com/docs/ref-1006	any	url
+https://example.com/docs/ref-1007	any	url
+https://example.com/docs/ref-1008	any	url
+https://example.com/docs/ref-1009	any	url
+https://example.com/docs/ref-1010	any	url
+https://example.com/docs/ref-1011	any	url
+https://example.com/docs/ref-1012	any	url
+https://example.com/docs/ref-1013	any	url
+https://example.com/docs/ref-1014	any	url
+https://example.com/docs/ref-1015	any	url
+https://example.com/docs/ref-1016	any	url
+https://example.com/docs/ref-1017	any	url
+https://example.com/docs/ref-1018	any	url
+https://example.com/docs/ref-1019	any	url
+https://internal.example.org/tickets/1100	any	url
+https://internal.example.org/tickets/1101	any	url
+https://internal.example.org/tickets/1102	any	url
+https://internal.example.org/tickets/1103	any	url
+https://internal.example.org/tickets/1104	any	url
+https://internal.example.org/tickets/1105	any	url
+https://internal.example.org/tickets/1106	any	url
+https://internal.example.org/tickets/1107	any	url
+https://internal.example.org/tickets/1108	any	url
+https://internal.example.org/tickets/1109	any	url
+https://internal.example.org/tickets/1110	any	url
+https://internal.example.org/tickets/1111	any	url
+https://internal.example.org/tickets/1112	any	url
+https://internal.example.org/tickets/1113	any	url
+https://internal.example.org/tickets/1114	any	url
+https://internal.example.org/tickets/1115	any	url
+https://internal.example.org/tickets/1116	any	url
+https://internal.example.org/tickets/1117	any	url
+https://internal.example.org/tickets/1118	any	url
+https://internal.example.org/tickets/1119	any	url
+https://kb.example.net/articles/1200	any	url
+https://kb.example.net/articles/1201	any	url
+https://kb.example.net/articles/1202	any	url
+https://kb.example.net/articles/1203	any	url
+https://kb.example.net/articles/1204	any	url
+https://kb.example.net/articles/1205	any	url
+https://kb.example.net/articles/1206	any	url
+https://kb.example.net/articles/1207	any	url
+https://kb.example.net/articles/1208	any	url
+https://kb.example.net/articles/1209	any	url
+https://kb.example.net/articles/1210	any	url
+https://kb.example.net/articles/1211	any	url
+https://kb.example.net/articles/1212	any	url
+https://kb.example.net/articles/1213	any	url
+https://kb.example.net/articles/1214	any	url
+https://kb.example.net/articles/1215	any	url
+https://kb.example.net/articles/1216	any	url
+https://kb.example.net/articles/1217	any	url
+https://kb.example.net/articles/1218	any	url
+https://kb.example.net/articles/1219	any	url
+https://portal.example.com/orders/1300	any	url
+https://portal.example.com/orders/1301	any	url
+https://portal.example.com/orders/1302	any	url
+https://portal.example.com/orders/1303	any	url
+https://portal.example.com/orders/1304	any	url
+https://portal.example.com/orders/1305	any	url
+https://portal.example.com/orders/1306	any	url
+https://portal.example.com/orders/1307	any	url
+https://portal.example.com/orders/1308	any	url
+https://portal.example.com/orders/1309	any	url
+https://portal.example.com/orders/1310	any	url
+https://portal.example.com/orders/1311	any	url
+https://portal.example.com/orders/1312	any	url
+https://portal.example.com/orders/1313	any	url
+https://portal.example.com/orders/1314	any	url
+https://portal.example.com/orders/1315	any	url
+https://portal.example.com/orders/1316	any	url
+https://portal.example.com/orders/1317	any	url
+https://portal.example.com/orders/1318	any	url
+https://portal.example.com/orders/1319	any	url
