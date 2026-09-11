@@ -1,20 +1,42 @@
-# English stopwords. Used by the prose heuristic and by Lane 3 (YAKE).
-# Standard English stopword set; lines beginning with # are ignored.
-a about above after again against all am an and any are aren't as at
-be because been before being below between both but by
-can cannot could couldn't
-did didn't do does doesn't doing don't down during
-each few for from further
-had hadn't has hasn't have haven't having he he'd he'll he's her here here's hers herself
-him himself his how how's
-i i'd i'll i'm i've if in into is isn't it it's its itself
-let's me more most mustn't my myself
-no nor not of off on once only or other ought our ours ourselves out over own
-same shan't she she'd she'll she's should shouldn't so some such
-than that that's the their theirs them themselves then there there's these they they'd
-they'll they're they've this those through to too
-under until up very
-was wasn't we we'd we'll we're we've were weren't what what's when when's where where's
-which while who who's whom why why's with won't would wouldn't
-you you'd you'll you're you've your yours yourself yourselves
-also may might must shall will just now upon within without across among
+# English stopwords. Used by the prose heuristic and by Stage 3 (YAKE).
+#
+# Lines beginning with # are ignored; entries are whitespace-separated, so a line here is
+# a run of words rather than one entry.
+#
+# Source: NLTK's English stopword corpus, which originates in the Snowball lists. See
+# NOTICE for attribution. Two edits are applied by the regeneration script, which prints
+# both so the diff is reviewable:
+#
+#   DROPPED — the stems and clitics of negated contractions (`didn`, `isn`, `wasn`, `ve`,
+#   `ll`, `s`, `t`, `ma`). They exist in NLTK's list only because its tokeniser splits
+#   `didn't` into `did` + `n't`; ours keeps it whole, so they can never match. One of
+#   them, `won`, is a real English verb that would otherwise be suppressed.
+#
+#   ADDED — the modals NLTK omits (may, might, must, shall, should, would, could, cannot,
+#   ought) and the prepositions across, among, upon, within, without. Without the modals
+#   YAKE admits "may require calibration" as a candidate phrase headed by a function word,
+#   and the prose gate undercounts function-word density in formal register.
+#
+# It is deliberately NOT NLTK's list verbatim, and deliberately not the `stop-words`
+# crate. Both are built for a tokeniser that splits `didn't` into `did` + `n't`, so a
+# quarter of NLTK's entries are fragments (`didn`, `isn`, `wasn`, `ve`, `ll`, `s`, `t`)
+# that our tokeniser can never produce — and one of them, `won`, is a real English verb.
+# A stopword list has to match the tokeniser that consumes it. `stopword_entries_are_
+# tokens_our_tokeniser_can_actually_produce` in src/resources.rs pins that agreement.
+#
+# Regenerate with scripts/fetch_stopwords.sh. Order is not significant.
+a about above across after again against all also am among an and any are
+aren't as at be because been before being below between both but by can
+cannot could couldn't did didn't do does doesn't doing don't down during
+each few for from further had hadn't has hasn't have haven't having he
+he'd he'll he's her here here's hers herself him himself his how how's i
+i'd i'll i'm i've if in into is isn't it it'd it'll it's its itself just
+let's may me might mightn't more most must mustn't my myself needn't no
+nor not now of off on once only or other ought our ours ourselves out over
+own same shall shan't she she'd she'll she's should should've shouldn't so
+some such than that that'll that's the their theirs them themselves then
+there there's these they they'd they'll they're they've this those through
+to too under until up upon very was wasn't we we'd we'll we're we've were
+weren't what what's when when's where where's which while who who's whom
+why why's will with within without won't would wouldn't you you'd you'll
+you're you've your yours yourself yourselves
