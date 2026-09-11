@@ -82,7 +82,6 @@ pub fn separator_segments(text: &str) -> usize {
 /// sentence when followed by whitespace and an uppercase or digit start, so `v2.14.3` and
 /// `Fig. 4` do not fabricate boundaries.
 pub fn sentences(text: &str) -> Vec<Range<usize>> {
-    let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut start = 0usize;
 
@@ -103,7 +102,6 @@ pub fn sentences(text: &str) -> Vec<Range<usize>> {
                     .is_some_and(|n| n.is_uppercase() || n.is_ascii_digit());
 
         if ends && after > start {
-            let _ = bytes;
             if text[start..after].trim().len() > 1 {
                 out.push(start..after);
             }

@@ -1,6 +1,6 @@
 # General English wordlist, frequency-ranked (most frequent first).
 #
-# Absence from the active prefix of this list is a Lane 1 shape signal, so what belongs
+# Absence from the active prefix of this list is a Stage 1 shape signal, so what belongs
 # here is GENERAL English only. A list containing domain vocabulary would make technical
 # terms look ordinary and destroy the signal entirely — the corpus is heterogeneous and
 # must not be assumed scientific.
@@ -10,11 +10,16 @@
 # (c) frequency-ranked, which turns "how big should the wordlist be" into a single
 # tunable scalar (`Config::wordlist_size`) that the injection instrument can sweep.
 #
-# Measured separation that motivates the default cutoff of 65,000:
-#   ordinary:  procedure 3.5k · invoice 18k · compliance 22.5k · calibration 45k
-#              · contractual 46k · specification 60k
-#   domain:    chromatography 87k · immunoglobulin 97k · elution 1.29M
-#              · sepharose, superdex absent
+# Measured separation that motivates the default cutoff of 65,000. Ranks are positions
+# in THIS file (comment lines excluded), which is what Config::wordlist_size indexes:
+#   ordinary:  procedure 3 551 · invoice 17 776 · compliance 21 780
+#              · calibration 42 181 · contractual 43 450 · specification 55 549
+#   domain:    chromatography 78 504 · armature 69 311 · headcount 79 820
+#              · immunoglobulin, elution, sepharose, superdex absent beyond 80 000
+#
+# Note that list depth carries no signal at the cutoff: armature (69 311) and headcount
+# (79 820) sit in the same band as chromatography (78 504). That is why a graded
+# absent-from-wordlist feature was rejected — see TODO.md, Settled.
 #
 # Regenerate with scripts/fetch_wordlist.sh. Order is significant: rank is position.
 you
@@ -77696,6 +77701,7 @@ tich
 weta
 catlike
 webmd
+mugwort
 inexact
 mannerheim
 akizuki
@@ -80016,4 +80022,3 @@ kutter
 glynis
 shanties
 warbird
-medisonus

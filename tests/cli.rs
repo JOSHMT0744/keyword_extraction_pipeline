@@ -256,3 +256,48 @@ fn config_emits_json_the_extract_command_accepts_back() {
     ]);
     assert_eq!(code, 0, "kep config produced a file kep extract rejects");
 }
+
+#[test]
+fn csv_is_one_row_per_keyword_under_a_single_header() {
+    // The two remaining `--format` values had no end-to-end coverage: the quoting helper
+    // was unit-tested, but nothing checked the shape of the file a consumer actually gets.
+    let (stdout, _, code) = run(&["extract", "--format", "csv", fixtures().to_str().unwrap()]);
+    assert_eq!(code, 0);
+
+    let mut lines = stdout.lines();
+    let header = lines.next().expect("a header row");
+    assert!(header.starts_with("path,status,kind,rank,score"), "header was {header:?}");
+    assert!(
+        !stdout.lines().skip(1).any(|l| l.starts_with("path,status,")),
+        "the header repeats per document; a single file must carry exactly one"
+    );
+
+    let columns = header.split(',').count();
+    for line in lines {
+        // Quoting can legitimately hold a comma, so this is a floor rather than equality.
+        assert!(
+            line.split(',').count() >= columns - 2,
+            "row has too few fields for the header: {line:?}"
+        );
+    }
+    // Every fixture is accounted for, including the ones that yielded nothing.
+    for fixture in ["simple.pdf", "scanned.pdf", "simple.xlsx", "thread.eml"] {
+        assert!(stdout.contains(fixture), "{fixture} missing from the csv");
+    }
+}
+
+#[test]
+fn json_is_one_array_holding_every_document() {
+    let (stdout, _, code) = run(&["extract", "--format", "json", fixtures().to_str().unwrap()]);
+    assert_eq!(code, 0);
+
+    let v: serde_json::Value = serde_json::from_str(&stdout).expect("stdout is one json value");
+    let docs = v.as_array().expect("the top level is an array, not a stream of objects");
+    assert_eq!(docs.len(), 8, "one entry per fixture");
+    for doc in docs {
+        assert!(doc["path"].is_string());
+        for kind in ["identifier", "technical", "topical"] {
+            assert!(doc["keywords"][kind].is_array(), "missing {kind} group");
+        }
+    }
+}

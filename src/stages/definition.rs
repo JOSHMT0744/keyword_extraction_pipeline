@@ -6,7 +6,7 @@
 //!
 //! This stage answers a question Stage 1 structurally cannot. Stage 1 decides what a term is
 //! from its orthography, which makes `SOP` indistinguishable from the ordinary word
-//! "sop" without the case-run heuristic in [`super::shape::acronym_flags`]. A document
+//! "sop" without the case-run heuristic in `shape::acronym_flags`. A document
 //! that writes `Standard Operating Procedure (SOP)` has *told* us, and evidence beats
 //! inference. It also yields the canonical expansion, which nothing else here can.
 //!

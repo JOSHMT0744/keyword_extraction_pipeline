@@ -13,10 +13,6 @@ use crate::{config::Config, error::ExtractError};
 pub struct PdfExtractor;
 
 impl TextExtractor for PdfExtractor {
-    fn name(&self) -> &'static str {
-        "pdf_oxide"
-    }
-
     fn extract(&self, bytes: &[u8], cfg: &Config) -> Result<RawText, ExtractError> {
         let doc = PdfDocument::from_bytes(bytes.to_vec())
             .map_err(|e| ExtractError::Parse(format!("pdf: {e}")))?;

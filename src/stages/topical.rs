@@ -13,7 +13,7 @@
 //! **Scores are lower-is-better.** This is the one place in the crate where that is true,
 //! and it is why [`crate::config::Thresholds::topical`] is an upper bound rather than a
 //! floor. Ranking still runs descending by score across the union, so topical keywords
-//! are re-signed at emission: see [`to_keyword_score`].
+//! are re-signed at emission: see `to_keyword_score`.
 
 use std::{
     collections::{HashMap, HashSet},

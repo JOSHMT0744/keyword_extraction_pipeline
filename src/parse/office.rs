@@ -14,10 +14,6 @@ pub struct PptxExtractor;
 pub struct XlsxExtractor;
 
 impl TextExtractor for DocxExtractor {
-    fn name(&self) -> &'static str {
-        "docx"
-    }
-
     fn extract(&self, bytes: &[u8], _cfg: &Config) -> Result<RawText, ExtractError> {
         let parts = read_parts(bytes, |n| n == "word/document.xml")?;
         let mut text = String::new();
@@ -29,10 +25,6 @@ impl TextExtractor for DocxExtractor {
 }
 
 impl TextExtractor for PptxExtractor {
-    fn name(&self) -> &'static str {
-        "pptx"
-    }
-
     fn extract(&self, bytes: &[u8], _cfg: &Config) -> Result<RawText, ExtractError> {
         // Slide order matters for reading order, and zip entry order does not guarantee
         // it, so parts are sorted by name before concatenation. `slide10` sorting before
@@ -51,10 +43,6 @@ impl TextExtractor for PptxExtractor {
 }
 
 impl TextExtractor for XlsxExtractor {
-    fn name(&self) -> &'static str {
-        "xlsx"
-    }
-
     fn extract(&self, bytes: &[u8], _cfg: &Config) -> Result<RawText, ExtractError> {
         let mut wb: Xlsx<_> = Xlsx::new(Cursor::new(bytes.to_vec()))
             .map_err(|e| ExtractError::Parse(format!("xlsx: {e:?}")))?;

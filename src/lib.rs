@@ -17,16 +17,17 @@
 
 pub mod canonical;
 pub mod config;
+pub mod error;
+pub mod language;
 pub mod parse;
 pub mod prose;
-pub mod error;
-pub mod stages;
-pub mod language;
 pub mod resources;
-pub mod serde_hex;
+pub mod stages;
 pub mod tokenize;
 pub mod types;
 pub mod version;
+
+mod serde_hex;
 
 pub use config::Config;
 pub use error::ExtractError;

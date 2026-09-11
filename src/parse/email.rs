@@ -15,10 +15,6 @@ use crate::{config::Config, error::ExtractError};
 pub struct EmailExtractor;
 
 impl TextExtractor for EmailExtractor {
-    fn name(&self) -> &'static str {
-        "mail-parser"
-    }
-
     fn extract(&self, bytes: &[u8], _cfg: &Config) -> Result<RawText, ExtractError> {
         let msg = MessageParser::default()
             .parse(bytes)

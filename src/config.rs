@@ -110,9 +110,9 @@ pub struct Config {
     /// How many of the frequency-ranked wordlist entries count as ordinary English.
     ///
     /// The single scalar governing Stage 1's `absent_from_wordlist` feature. Measured
-    /// separation in the embedded list puts ordinary formal vocabulary above ~60k
-    /// (`specification` 60k) and domain vocabulary below (`chromatography` 87k), so the
-    /// default sits between them. Intended to be swept by the injection instrument
+    /// separation in the embedded list puts ordinary formal vocabulary above the default
+    /// (`specification` 55 549) and domain vocabulary below it (`chromatography` 78 504),
+    /// so the default sits between them. Intended to be swept by the injection instrument
     /// rather than argued about.
     pub wordlist_size: usize,
     /// How far down the frequency-ranked wordlist a word still counts as *too* ordinary
@@ -123,8 +123,8 @@ pub struct Config {
     /// the same rule promoted `CODE` and `TODAY` out of a two-word marketing heading and
     /// ranked them above `ELN`, `LIMS` and `QMS`.
     ///
-    /// Measured separation in the embedded list: `today` 243, `code` 1417, `source` 2148,
-    /// `labs` 8289 are shouted English; `sop` 39910 is the collision the acronym rule
+    /// Measured separation in the embedded list: `today` 224, `code` 1398, `source` 2129,
+    /// `labs` 8270 are shouted English; `sop` 39891 is the collision the acronym rule
     /// exists for, and `hplc`, `eln`, `lims`, `qms` are absent at any depth. The default
     /// sits between them. Like [`Config::wordlist_size`] it is **a value read off that
     /// separation, not a measured optimum** — it is intended to be swept by the
@@ -144,7 +144,7 @@ pub struct Config {
     pub yake_ngram_max: usize,
     /// Retain Stage 1's feature vector on every emitted keyword.
     ///
-    /// Debug and tuning only, and **deliberately absent from [`Config::feed`]**: it
+    /// Debug and tuning only, and **deliberately absent from `Config::feed`**: it
     /// cannot change *which* keywords are emitted, only how much is reported about
     /// them. Folding it into the version stamp would invalidate every cached keyword
     /// set the moment someone ran `kep explain`.

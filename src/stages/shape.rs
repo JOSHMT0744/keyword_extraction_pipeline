@@ -63,9 +63,9 @@ struct Candidate {
 /// lowercase prose, while shouting comes in runs, so a token must not sit inside a run of
 /// three or more consecutive all-caps tokens. **Frequency**: the run rule alone is
 /// defeated by a short heading — `ARMATURE CODE` is a run of two, under the bound, and it
-/// promoted `code` (rank 1417) to an acronym scoring identically to `ELN` and `QMS`. A
+/// promoted `code` (rank 1398) to an acronym scoring identically to `ELN` and `QMS`. A
 /// word common enough to sit in the first [`Config::acronym_wordlist_depth`] entries is
-/// being shouted, not abbreviated. `sop` at 39910 is well clear of that line; `hplc`,
+/// being shouted, not abbreviated. `sop` at 39891 is well clear of that line; `hplc`,
 /// `eln`, `lims` and `qms` are absent from the list at any depth.
 fn acronym_flags(toks: &[Token<'_>], cfg_res: &Resources) -> Vec<bool> {
     const RUN: usize = 3;
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn a_common_word_shouted_in_a_short_heading_is_not_an_acronym() {
         // The run rule alone is defeated by a two-word heading: `ARMATURE CODE` is a run
-        // of two, under the bound, so `code` (rank 1417) was promoted to an acronym and
+        // of two, under the bound, so `code` (rank 1398) was promoted to an acronym and
         // scored identically to `ELN` and `QMS` in a real document.
         let out: Vec<String> = run("ARMATURE CODE\nStart TODAY with the team today.")
             .into_iter().map(|k| k.original_keyword).collect();

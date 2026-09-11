@@ -55,8 +55,6 @@ impl RawText {
 }
 
 pub trait TextExtractor {
-    /// Stable identifier, recorded in diagnostics so a result can be traced to a backend.
-    fn name(&self) -> &'static str;
     fn extract(&self, bytes: &[u8], cfg: &Config) -> Result<RawText, ExtractError>;
 }
 

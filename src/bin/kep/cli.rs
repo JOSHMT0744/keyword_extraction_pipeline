@@ -1,6 +1,6 @@
 //! Argument surface.
 //!
-//! Config is exposed two ways deliberately. `--config` is the reproducible path: a file
+//! Config is exposed two ways deliberately. `--config-file` is the reproducible path: a file
 //! you can commit next to the numbers it produced. The individual overrides exist only
 //! for the handful of fields that tuning actually touches, so a sweep does not have to
 //! write a temporary file per point. Anything else is changed by editing a config file,

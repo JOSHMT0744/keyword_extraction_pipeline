@@ -9,10 +9,6 @@ use crate::{config::Config, error::ExtractError};
 pub struct PlainTextExtractor;
 
 impl TextExtractor for PlainTextExtractor {
-    fn name(&self) -> &'static str {
-        "plain"
-    }
-
     fn extract(&self, bytes: &[u8], _cfg: &Config) -> Result<RawText, ExtractError> {
         let text = decode(bytes);
         Ok(RawText::new(text, SourceKind::Plain))
@@ -21,7 +17,7 @@ impl TextExtractor for PlainTextExtractor {
 
 /// Decode as UTF-8, stripping a BOM; fall back to Latin-1, which cannot fail and is the
 /// common case for legacy plain-text files in an old corpus.
-pub(crate) fn decode(bytes: &[u8]) -> String {
+fn decode(bytes: &[u8]) -> String {
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     match std::str::from_utf8(bytes) {
         Ok(s) => s.to_string(),
