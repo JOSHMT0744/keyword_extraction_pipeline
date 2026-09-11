@@ -19,4 +19,8 @@ pub mod rng;
 pub mod score;
 pub mod tiers;
 
+// Same reasoning as the `#![allow(dead_code)]` above: whichever consumer is compiling
+// this only uses some of these re-exports (tests/injection.rs uses tier_of directly;
+// examples/sweep_stage1.rs reaches TierResources via `tiers::TierResources` instead).
+#[allow(unused_imports)]
 pub use tiers::{tier_of, Tier, TierResources};

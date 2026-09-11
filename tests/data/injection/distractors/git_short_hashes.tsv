@@ -10,6 +10,7 @@
 # surface itself, at fixed wordlist depth — it is never read from this file.
 #
 # Regenerate with scripts/fetch_injection_tiers.sh
+41e664e	it	git-short-hash
 03c46c4	it	git-short-hash
 d56626b	it	git-short-hash
 0e18d7b	it	git-short-hash

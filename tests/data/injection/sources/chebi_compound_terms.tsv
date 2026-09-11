@@ -1,0 +1,71 @@
+# Injection source: ChEBI (Chemical Entities of Biological Interest), EBI public search API
+# URL: https://www.ebi.ac.uk/chebi/backend/api/public/es_search/
+# Licence: CC0 / public domain, EBI
+# Mined: 2026-09-11. Entries are single-word compound names returned by ChEBI's search API for a fixed set of query terms (enzyme, protein, antibody, reagent, buffer, resin, chromatography), unfiltered beyond 'is one alphabetic word'. This source exists specifically to give the tier-assignment rule real Medium/HardReachable-tier coverage: coded identifier schemes (JIRA, CVE, PDB) are digit-bearing by construction and can never tier as anything but Easy.
+# Register: lab
+# Scheme: technical-term
+#
+# Columns: surface	register	scheme
+# The harness (tests/injection_harness/tiers.rs) computes difficulty tier from the
+# surface itself, at fixed wordlist depth — it is never read from this file.
+#
+# Regenerate with scripts/fetch_injection_tiers.sh
+acacia	lab	technical-term
+acimtamig	lab	technical-term
+aldrithiol	lab	technical-term
+anaerobilin	lab	technical-term
+antigen	lab	technical-term
+avitotamig	lab	technical-term
+azuresin	lab	technical-term
+bapineuzumab	lab	technical-term
+bicine	lab	technical-term
+biocytinamide	lab	technical-term
+bromelains	lab	technical-term
+buffer	lab	technical-term
+butyrylthiocholine	lab	technical-term
+chlorambucil	lab	technical-term
+chlorotrimethylsilane	lab	technical-term
+cholestyramine	lab	technical-term
+coerulignone	lab	technical-term
+colestipol	lab	technical-term
+cystathionine	lab	technical-term
+effector	lab	technical-term
+elsilimomab	lab	technical-term
+epitope	lab	technical-term
+etesevimab	lab	technical-term
+ferredoxin	lab	technical-term
+guaiac	lab	technical-term
+hexamethyldisilazane	lab	technical-term
+ipilimumab	lab	technical-term
+ivuxolimab	lab	technical-term
+landogrozumab	lab	technical-term
+lirentelimab	lab	technical-term
+lirilumab	lab	technical-term
+luciferin	lab	technical-term
+mimotope	lab	technical-term
+myrrh	lab	technical-term
+narsoplimab	lab	technical-term
+naxitamab	lab	technical-term
+nivolumab	lab	technical-term
+olaratumab	lab	technical-term
+olendalizumab	lab	technical-term
+opium	lab	technical-term
+orgotein	lab	technical-term
+parsatuzumab	lab	technical-term
+pascolizumab	lab	technical-term
+pepinemab	lab	technical-term
+phenyltoloxamine	lab	technical-term
+placulumab	lab	technical-term
+polynoxylin	lab	technical-term
+protein	lab	technical-term
+reagent	lab	technical-term
+reozalimab	lab	technical-term
+shellac	lab	technical-term
+sintilimab	lab	technical-term
+spartalizumab	lab	technical-term
+storax	lab	technical-term
+styrene	lab	technical-term
+tobemstomig	lab	technical-term
+tragacanth	lab	technical-term
+urokinase	lab	technical-term
+zilucoplan	lab	technical-term

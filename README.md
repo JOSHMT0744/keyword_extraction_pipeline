@@ -521,6 +521,7 @@ judgement required:
 | `tests/determinism.rs` | Is the reproducibility guarantee real? Repeated extraction must be byte-identical |
 | `tests/cross_format.rs` | Is canonicalisation silently format-dependent? Same content as PDF, docx and text should agree. **Reported, not gated** — some divergence is legitimate |
 | `tests/cli.rs` | Does the binary report every document, in a stable form, whatever the shell does to stdout? Includes: every empty kind states why it is empty, and every `--format` value is exercised end to end |
+| `tests/injection.rs` | Are Stage 1's shape thresholds right? Plants known identifiers and distractors into synthetic documents; easy-tier recall must be total, dates/phone numbers must never be emitted, Stage 1 must beat two trivial baselines. **Hard-reachable and medium-tier recall are reported, not gated** — nobody has measured a target for them yet, which is what `examples/sweep_stage1.rs` is for |
 | `tests/readme_examples.rs` | Does every code example in this README compile and run? |
 
 ```sh
@@ -531,11 +532,30 @@ cargo clippy --all-targets
 Fixtures are committed, so tests need no generation step; the generator scripts are
 committed too, so fixtures can be reviewed rather than trusted as opaque binaries.
 
+### Tuning `wordlist_size` and `acronym_wordlist_depth`
+
+`cargo run --release --example sweep_stage1` reuses `tests/injection.rs`'s harness to sweep
+`wordlist_size` × `thresholds.technical` (they are not independent — shrinking the wordlist
+raises every absence-based score, and a higher threshold cancels that) and prints, per grid
+point, medium- and hard-reachable-tier recall, distractor emission, and — the axis a naive
+sweep would otherwise ignore — **prose false-emissions per 1000 tokens**, the precision cost
+of a smaller wordlist. It closes with a frontier table locating the current default against
+that trade-off. `acronym_wordlist_depth` gets its own narrow table, since it touches nothing
+but short all-caps tokens and its cost axis is authored carrier text rather than real prose.
+
+**Two structural findings from building the instrument**, both now pinned as tests rather
+than left as assumptions: a bare numeral (`2291`) and a common-word collision (`Titan`,
+`Blue`) are not *hard* to find — `shape::is_candidate` rejects both before scoring runs, at
+any configuration. Reference URLs (`https://example.com/docs/ref-4417`) score comfortably
+above the identifier threshold and are reliably emitted — a real, measured finding, not
+narrowed away by trimming the distractor set.
+
+The instrument reports; it does not decide. Moving `wordlist_size`, `acronym_wordlist_depth`
+or a threshold away from its current default is a separate decision, taken against this
+output — not yet made.
+
 Not yet built:
 
-- The **identifier-injection instrument** that would settle whether `wordlist_size` should
-  be 65 000 and `acronym_wordlist_depth` 20 000. Both are values read off the separation
-  in the embedded list, not measured optima.
 - The **Inspec/SemEval keyphrase benchmark** that would settle `thresholds.topical`. Now
   that the prose gate no longer rejects wrapped PDFs, Stage 3 produces output on real
   documents for the first time, and the first thing it shows is that the admitted set is

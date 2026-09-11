@@ -95,6 +95,35 @@ for r in d.get('result_set', []):
 " >> "$OUT/sources/rcsb_pdb_entry_ids.tsv"
 echo "  wrote $(grep -vc '^#' "$OUT/sources/rcsb_pdb_entry_ids.tsv") entries"
 
+echo "-- ChEBI single-word chemical/biological vocabulary (lab register, Medium/HardReachable tiers) --"
+header "$OUT/sources/chebi_compound_terms.tsv" \
+  "ChEBI (Chemical Entities of Biological Interest), EBI public search API" \
+  "https://www.ebi.ac.uk/chebi/backend/api/public/es_search/" \
+  "CC0 / public domain, EBI" \
+  "lab" "technical-term" \
+  "Entries are single-word compound names returned by ChEBI's search API for a fixed set of query terms (enzyme, protein, antibody, reagent, buffer, resin, chromatography), unfiltered beyond 'is one alphabetic word'. This source exists specifically to give the tier-assignment rule real Medium/HardReachable-tier coverage: coded identifier schemes (JIRA, CVE, PDB) are digit-bearing by construction and can never tier as anything but Easy."
+for term in enzyme protein antibody reagent buffer resin chromatography; do
+  curl -sSf --max-time 15 "https://www.ebi.ac.uk/chebi/backend/api/public/es_search/?term=$term&size=100" 2>/dev/null     | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for r in d.get('results', []):
+    n = r.get('_source', {}).get('ascii_name', '')
+    if n and ' ' not in n and n.isalpha() and len(n) > 4:
+        print(f'{n.lower()}	lab	technical-term')
+"
+done | sort -u >> "$OUT/sources/chebi_compound_terms.tsv"
+echo "  wrote $(grep -vc '^#' "$OUT/sources/chebi_compound_terms.tsv") entries"
+
+echo "-- rare English words sampled from this crate's own embedded wordlist (HardReachable tier) --"
+header "$OUT/sources/wordlist_rare_terms.tsv" \
+  "This crate's own resources/wordlist.txt (hermitdave/FrequencyWords, MIT — see NOTICE), not an external source" \
+  "n/a — derived from a file already in this repository" \
+  "MIT, hermitdave/FrequencyWords — same as resources/wordlist.txt" \
+  "any" "rare-word" \
+  "DERIVED, not mined: every 500th word at ranks 20,001-79,999 of the embedded wordlist, taken by fixed stride, not hand-picked. This exists to give HardReachable-tier coverage real breadth: it is words genuinely present in general English, but rare enough to be absent from the wordlist at typical wordlist_size cutoffs and present again only near the full 80k depth — exactly the definition tiers.rs uses for HardReachable."
+awk 'NF && $0 !~ /^#/ {print}' resources/wordlist.txt   | awk 'NR>=20001 && NR<=79999 && NR%500==0 {print $0 "	any	rare-word"}'   >> "$OUT/sources/wordlist_rare_terms.tsv"
+echo "  wrote $(grep -vc '^#' "$OUT/sources/wordlist_rare_terms.tsv") entries"
+
 echo "== distractors: identifier-shaped non-identifiers =="
 
 echo "-- semver strings (mined from crates.io index: serde) --"
