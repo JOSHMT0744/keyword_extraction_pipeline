@@ -68,12 +68,25 @@ overfit to one marketing PDF.
 
 Both are values read off the separation in the embedded list, not measured optima, and
 both say so in their doc comments. `wordlist_size` was placed between `specification`
-(55 568) and `chromatography` (78 523); `acronym_wordlist_depth` between `labs` (8 289)
-and `sop` (39 910). Sweep both.
+(55 549) and `chromatography` (78 504); `acronym_wordlist_depth` between `labs` (8 270)
+and `sop` (39 891). Sweep both.
 
-Be aware when sweeping `wordlist_size`: the 80k list contains domain vocabulary, so list
-*depth* carries no signal at the cutoff — `chromatography` (78 523), `armature` (69 330)
-and `headcount` (79 839) sit in the same band. This is why graded
+Do **not** prune `resources/lemmas.txt` against the default cutoff, tempting though the
+measurement looks. At `wordlist_size` 65 000, 1 955 of its 5 465 entries are never
+consulted, because the inflected surface is already a wordlist entry — but that number is
+1 196 at 20 000 and 2 097 at 80 000. *Which* entries are dead is a function of the cutoff,
+so pruning against one setting silently breaks every other, including every point of the
+sweep below.
+
+Be aware when sweeping `wordlist_size` that lemmatisation moved what a cutoff *means*:
+a form below the cutoff is now reachable through its lemma, so effective coverage at
+65 000 is wider than it was when that value was chosen. The separation argument in
+`resources/wordlist.txt`'s header still holds, but the default is one of the numbers the
+sweep should re-derive rather than confirm.
+
+Also be aware when sweeping `wordlist_size`: the 80k list contains domain vocabulary, so list
+*depth* carries no signal at the cutoff — `chromatography` (78 504), `armature` (69 311)
+and `headcount` (79 820) sit in the same band. This is why graded
 absent-from-wordlist was rejected (see Settled below).
 
 ---
@@ -121,7 +134,9 @@ needed regardless.
 
 After `ff6be68` the corpus document still emits `auditable`, `inspectable`, `headcount`
 and `dataset`/`Datasets`. These are ordinary English words genuinely absent from a
-65 000-word general list. Nothing corpus-blind removes them — that is the standing cost of
+65 000-word general list. Lemmatisation does **not** touch them and was never going to:
+they are regular *derivations* (`-able`) or simply absent lemmas, not irregular
+inflections. The Settled row on `-able` below is the argument for why. Nothing corpus-blind removes them — that is the standing cost of
 the corpus-blindness decision, not a bug to be patched.
 
 Two ways out, both large, neither to be taken without evidence:
@@ -153,13 +168,35 @@ Noticed during the review, not investigated:
 
 ---
 
-## 7. Housekeeping
+## 7. Publishing checklist
 
-- **`.gitignore` has a typo.** It carries `.corpus/.`, which matches nothing —
-  `corpus/` is still untracked and showing in `git status`. Intended rule is presumably
-  `corpus/`. `keywords.jsonl` is untracked and unignored too; decide whether run output
-  belongs in the repo at all.
-- `.gitignore` is missing a trailing newline.
+Housekeeping from the review is done (`.gitignore` rules corrected, `corpus/` removed
+from the repository entirely — input documents are the user's to supply, stray run output
+removed, `Cargo.toml` given `exclude`/`keywords`/`categories`, cited wordlist ranks
+corrected, dead code removed).
+
+Since then, all three embedded resources are **derived rather than asserted**: each has a
+named permissively licensed source, a committed `scripts/fetch_*.sh`, a `NOTICE` entry and
+a digest folded into `PipelineVersion`. The wordlist lookup now lemmatises via WordNet's
+morphy — suffix detachment plus the irregular exception lists — which resolved 1 375 forms
+no rule could reach (`indices`, `appendices`, `syntheses`, `addenda`, `curricula`,
+`formulae` among them, each of which previously cleared the technical threshold on nothing
+but its own absence). `LOGIC_REVISION` is 8.
+
+One wart worth knowing, not worth fixing now: the resource digests are taken over the
+whole file, comments included, so correcting a typo in a header moves `PipelineVersion`
+and invalidates cached keyword sets. That is conservative-correct — it can never miss a
+real change — and narrowing it to the parsed entries is a change to the stamp's
+definition, which should not be made casually.
+
+What remains before `cargo publish`:
+
+- **`0.1.0` publishes a public API that is still moving.** `thresholds.topical` is known
+  to be wrong (item 2) and every default is unswept (items 1 and 3). Either publish
+  `0.1.x` with the README's existing "not measured optima" warning as the version
+  contract, or hold until the gold set exists.
+- The crate name `keyword_extraction_pipeline` is unclaimed but generic; the binary is
+  `kep`. Worth deciding whether they should match before the name is taken.
 
 ---
 
@@ -171,8 +208,8 @@ Decisions taken during the 2026-09-11 review, recorded so they are not re-propos
 |---|---|---|
 | Corpus DF / IDF table | **No**, for now | Corpus-blindness is a documented invariant (`lib.rs`, `README.md`). It also would not have fixed any keyword that prompted the review: Stage 3 never ran, and Stage 1 has no statistical component. See item 5. |
 | Reflow canonical PDF text | **No** | Moves every byte offset, and erodes the page-line information `shape::same_line` and `topical::is_phrase` need to avoid splicing table cells. Healing is derived on demand in `tokenize::clauses` instead, keeping both views available. |
-| Graded `absent_from_wordlist` | **No — dead on arrival** | Absent-entirely = 1.0, past-the-cutoff = 0.5 would demote `armature` (69 330) and `headcount` (79 839) — but `chromatography` sits at 78 523, in the same band. List depth carries no signal at the cutoff. |
+| Graded `absent_from_wordlist` | **No — dead on arrival** | Absent-entirely = 1.0, past-the-cutoff = 0.5 would demote `armature` (69 311) and `headcount` (79 820) — but `chromatography` sits at 78 504, in the same band. List depth carries no signal at the cutoff. |
 | Lower `absent_from_wordlist` to 0.35 to force a second signal | **No** | Would wipe out most residual noise, but kills single-occurrence single-word technical terms in principle, `chromatography` included. That is the red line the weighting exists to protect. |
 | Raise `in_document_frequency` | **No** | `ARMATURE` (x18) reached technical rank 0 because `CODE` and `TODAY` stopped outscoring it, not because frequency was reweighted. No number changed by eye. |
-| `-able` in the wordlist reduction | **No** | Takes `auditable` and `inspectable`, but equally `injectable` (`inject` 11 324) and `filterable` (`filter` 9 329). `-s`/`-ed`/`-ing` make the same word again; `-able` makes a different one. Same argument rules out `-ly`, `-ness`, `-ment`. |
+| `-able` in the wordlist reduction | **No** | Takes `auditable` and `inspectable`, but equally `injectable` (`inject` 11 305) and `filterable` (`filter` 9 310). `-s`/`-ed`/`-ing` make the same word again; `-able` makes a different one. Same argument rules out `-ly`, `-ness`, `-ment`. |
 | Role-based furniture dropping now | **No** | Belongs with item 4; doing it alone means two separate changes to PDF text instead of one. |

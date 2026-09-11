@@ -9,9 +9,17 @@ DEPTH=80000   # embedded depth; Config::wordlist_size selects a cutoff at or bel
 cd "$(dirname "$0")/.."
 tmp=$(mktemp)
 curl -sSfL "$URL" -o "$tmp"
+# Without this guard a missing sentinel makes the sed range run to end-of-file, so the
+# old body is copied and the new one appended. The result still parses, so the duplicate
+# is invisible and only the digest moves.
+grep -q '^# Regenerate with' resources/wordlist.txt \
+  || { echo "resources/wordlist.txt has no '# Regenerate with' header line" >&2; exit 1; }
+
 {
   sed -n '1,/^# Regenerate with/p' resources/wordlist.txt
-  grep -oP '^[a-z]+(?=\s)' "$tmp" | head -"$DEPTH"
+  # `head` closes the pipe, which SIGPIPEs grep; under `set -o pipefail` that would
+  # make a successful run exit 141. Bound the input instead of the output.
+  grep -oP '^[a-z]+(?=\s)' "$tmp" | awk -v n="$DEPTH" 'NR <= n'
 } > resources/wordlist.txt.new
 mv resources/wordlist.txt.new resources/wordlist.txt
 rm -f "$tmp"

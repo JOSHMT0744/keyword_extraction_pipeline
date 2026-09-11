@@ -21,8 +21,12 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 /// 5 prose gate and Stage 3 (YAKE) added;
 /// 6 prose gate and Stage 3 scoped to clauses rather than rendered lines; wordlist
 /// lookup reduces to base forms; acronyms bounded by frequency depth; the apostrophe
-/// is no longer an identifier separator.
-pub const LOGIC_REVISION: u32 = 6;
+/// is no longer an identifier separator;
+/// 7 resource lookups fold typographic apostrophes into the ASCII key, so a contraction
+/// as a real document spells it matches the list entry;
+/// 8 the wordlist lookup lemmatises rather than suffix-strips — WordNet's irregular
+/// exception list supplies what `base_forms` cannot derive by rule.
+pub const LOGIC_REVISION: u32 = 8;
 
 /// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -42,6 +46,7 @@ impl PipelineVersion {
         cfg.feed(&mut h);
         h.update(&res.wordlist_digest);
         h.update(&res.stopwords_digest);
+        h.update(&res.lemmas_digest);
         Self(*h.finalize().as_bytes())
     }
 
@@ -106,10 +111,17 @@ mod tests {
         let cfg = Config::default();
         let base = PipelineVersion::compute(&cfg, &Resources::default());
 
-        let mut res = Resources::default();
-        res.wordlist_digest[0] ^= 0xff;
-        assert_ne!(base, PipelineVersion::compute(&cfg, &res));
-
+        // Every embedded resource, not just the wordlist: a digest left out of the
+        // fingerprint is a list that can change output without changing the stamp.
+        for perturb in [
+            |r: &mut Resources| r.wordlist_digest[0] ^= 0xff,
+            |r: &mut Resources| r.stopwords_digest[0] ^= 0xff,
+            |r: &mut Resources| r.lemmas_digest[0] ^= 0xff,
+        ] {
+            let mut res = Resources::default();
+            perturb(&mut res);
+            assert_ne!(base, PipelineVersion::compute(&cfg, &res));
+        }
     }
 
     #[test]
