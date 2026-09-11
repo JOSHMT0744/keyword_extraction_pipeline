@@ -81,7 +81,7 @@ impl TextExtractor for XlsxExtractor {
 /// Render a cell as text, dropping cells that carry no lexical content.
 ///
 /// Bare numbers are excluded: a spreadsheet of measurements would otherwise flood the
-/// identifier lane with numerics that carry no identifying power on their own.
+/// identifier stage with numerics that carry no identifying power on their own.
 fn cell_text(d: &Data) -> Option<String> {
     match d {
         Data::String(s) => {

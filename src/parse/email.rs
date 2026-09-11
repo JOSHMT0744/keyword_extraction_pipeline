@@ -2,7 +2,7 @@
 //!
 //! Only the subject and text bodies are taken. Headers beyond the subject are routing
 //! metadata: they contain addresses and message-ids that are identifier-shaped and would
-//! swamp the identifier lane with content nobody would ever search for.
+//! swamp the identifier stage with content nobody would ever search for.
 //!
 //! Quoted blocks and signatures are stripped in canonicalisation rather than here, so a
 //! caller regenerating canonical text to resolve offsets gets identical treatment.
@@ -59,7 +59,7 @@ mod tests {
         assert!(out.text.contains("column was regenerated"));
         assert!(
             !out.text.contains("ABC123XYZ"),
-            "message-id is identifier-shaped noise and must not reach the lanes: {:?}",
+            "message-id is identifier-shaped noise and must not reach the stages: {:?}",
             out.text
         );
         assert_eq!(out.source, SourceKind::Email);

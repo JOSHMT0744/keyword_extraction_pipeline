@@ -20,7 +20,7 @@ pub use pdf::PdfExtractor;
 pub use plain::PlainTextExtractor;
 
 /// What kind of document the text came from. Drives canonicalisation (email needs quote
-/// stripping) and the Lane 3 prose gate (spreadsheets are never prose).
+/// stripping) and the Stage 3 prose gate (spreadsheets are never prose).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceKind {
     Pdf,

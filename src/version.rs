@@ -13,11 +13,20 @@ use crate::{config::Config, resources::Resources};
 include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 
 /// Bumped by hand only when extraction *logic* changes in a way not captured by config
-/// or dependency versions — a new lane, an altered canonicalisation step.
-const LOGIC_REVISION: u32 = 1;
+/// or dependency versions — a new stage, an altered canonicalisation step.
+///
+/// History: 1 initial; 2 stopword list read as words rather than lines;
+/// 3 ranking hoisted out of Stage 1 so it spans the stage union;
+/// 4 Stage 2 (Schwartz–Hearst definitions) added to the union;
+/// 5 prose gate and Stage 3 (YAKE) added;
+/// 6 prose gate and Stage 3 scoped to clauses rather than rendered lines; wordlist
+/// lookup reduces to base forms; acronyms bounded by frequency depth; the apostrophe
+/// is no longer an identifier separator.
+pub const LOGIC_REVISION: u32 = 6;
 
+/// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PipelineVersion([u8; 32]);
+pub struct PipelineVersion(#[serde(with = "crate::serde_hex")] [u8; 32]);
 
 impl PipelineVersion {
     /// Derived from crate version, logic revision, resolved parser versions, the
@@ -43,6 +52,16 @@ impl PipelineVersion {
     /// Short hex form for logs and filenames.
     pub fn short(&self) -> String {
         self.0[..6].iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+impl std::str::FromStr for PipelineVersion {
+    type Err = &'static str;
+
+    /// Parse the full 64-character hex form. Exists so a stored stamp can be compared
+    /// against a freshly computed one without going through serde.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::serde_hex::decode32(s).map(Self)
     }
 }
 
@@ -91,6 +110,17 @@ mod tests {
         res.wordlist_digest[0] ^= 0xff;
         assert_ne!(base, PipelineVersion::compute(&cfg, &res));
 
+    }
+
+    #[test]
+    fn round_trips_through_its_hex_form() {
+        use std::str::FromStr;
+        let v = PipelineVersion::compute(&Config::default(), &Resources::default());
+        assert_eq!(PipelineVersion::from_str(&v.to_string()).unwrap(), v);
+        assert_eq!(
+            serde_json::from_str::<PipelineVersion>(&serde_json::to_string(&v).unwrap()).unwrap(),
+            v
+        );
     }
 
     #[test]

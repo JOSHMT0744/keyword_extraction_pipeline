@@ -1,8 +1,8 @@
-//! Lane 1 — shape and wordlist. The priority arm.
+//! Stage 1 — shape and wordlist. The priority arm.
 //!
 //! Finds identifiers and technical vocabulary from orthography alone, with no curated
 //! list of schemes. That is the point: recall must not be capped by a gazetteer, and the
-//! lane has to work on a tenant nobody has onboarded and a scheme nobody has catalogued.
+//! stage has to work on a tenant nobody has onboarded and a scheme nobody has catalogued.
 //!
 //! Scoring is a transparent weighted sum over a retained feature vector, deliberately not
 //! a classifier. There are no labels to train one on, and a learned model would forfeit
@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// The retained feature vector. Every value is in `[0, 1]`.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ShapeFeatures {
     pub internal_caps: f32,
     pub digit_letter_mix: f32,
@@ -57,11 +57,17 @@ struct Candidate {
 ///
 /// The wordlist is lowercase general English, so a case-blind membership test suppresses
 /// `SOP` because "sop" is an ordinary word. Treating every all-caps token as absent
-/// instead admits every word of a shouted heading. The discriminator is context: a
-/// genuine acronym appears among lowercase prose, while shouting comes in runs. A token
-/// is treated as an acronym only when it is short, all-caps, and *not* part of a run of
-/// three or more consecutive all-caps tokens.
-fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
+/// instead admits every word of a shouted heading.
+///
+/// Two conditions, and both are needed. **Context**: a genuine acronym appears among
+/// lowercase prose, while shouting comes in runs, so a token must not sit inside a run of
+/// three or more consecutive all-caps tokens. **Frequency**: the run rule alone is
+/// defeated by a short heading — `ARMATURE CODE` is a run of two, under the bound, and it
+/// promoted `code` (rank 1417) to an acronym scoring identically to `ELN` and `QMS`. A
+/// word common enough to sit in the first [`Config::acronym_wordlist_depth`] entries is
+/// being shouted, not abbreviated. `sop` at 39910 is well clear of that line; `hplc`,
+/// `eln`, `lims` and `qms` are absent from the list at any depth.
+fn acronym_flags(toks: &[Token<'_>], cfg_res: &Resources) -> Vec<bool> {
     const RUN: usize = 3;
     let caps: Vec<bool> = toks.iter().map(|t| is_short_all_caps(t.text) || is_long_all_caps(t.text)).collect();
     let mut out = vec![false; toks.len()];
@@ -78,7 +84,8 @@ fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
         }
         if end - i < RUN {
             for j in i..end {
-                out[j] = is_short_all_caps(toks[j].text);
+                out[j] = is_short_all_caps(toks[j].text)
+                    && !cfg_res.is_frequent_word(&toks[j].lower());
             }
         }
         i = end;
@@ -88,7 +95,7 @@ fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
 
 pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
     let toks = tokenize::tokens(text);
-    let acronyms = acronym_flags(&toks);
+    let acronyms = acronym_flags(&toks, res);
     let mut candidates: Vec<Candidate> = Vec::new();
 
     collect_unigrams(&toks, &acronyms, res, &mut candidates);
@@ -110,17 +117,21 @@ pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
 
         out.push(Keyword {
             frequency: c.offsets.len() as u32,
-            surface: c.surface,
+            original_keyword: c.surface,
             normalised: c.normalised,
             kind,
             origin: Origin::Shape,
             score,
             rank: 0,
             offsets: c.offsets,
+            expansion: None,
+            features: cfg.retain_features.then_some(features),
         });
     }
 
-    rank_within_kind(&mut out);
+    // Deliberately unranked. Ranks are dense within a kind and must span every stage's
+    // output, so the union is ranked once by the caller — see `crate::extract`. Ranking
+    // here as well would give Stage 2 its own colliding 0-based sequence.
     out
 }
 
@@ -245,7 +256,7 @@ fn is_phrase_tail(text: &str, res: &Resources) -> bool {
 ///
 /// Rejects stopwords, pure numerics and single characters. Bare numbers are excluded
 /// because a number alone carries no identifying power and a table of measurements would
-/// otherwise flood the lane.
+/// otherwise flood the stage.
 fn is_candidate(text: &str, lower: &str, acronym: bool, res: &Resources) -> bool {
     if text.chars().count() < 2 || res.is_stopword(lower) {
         return false;
@@ -256,8 +267,8 @@ fn is_candidate(text: &str, lower: &str, acronym: bool, res: &Resources) -> bool
     if acronym {
         return true;
     }
-    // Ordinary English with no orthographic signal is not a Lane 1 candidate. Topical
-    // relevance is Lane 3's job, and emitting these here would drown the lane.
+    // Ordinary English with no orthographic signal is not a Stage 1 candidate. Topical
+    // relevance is Stage 3's job, and emitting these here would drown the stage.
     if res.is_common_word(lower)
         && !has_internal_caps(text)
         && !has_digit(text)
@@ -320,19 +331,23 @@ fn classify(surface: &str) -> Kind {
     Kind::Technical
 }
 
-/// Rank descending by score within each kind.
+/// Rank descending by score within each kind, over the union of every stage's output.
 ///
 /// Never across kinds: shape scores and topical scores are on unrelated scales, and a
 /// single ranked list would be a fabricated comparison.
 pub fn rank_within_kind(keywords: &mut [Keyword]) {
     use std::collections::HashMap;
 
-    // Ties broken by normalised form so ordering is total and therefore reproducible.
+    // Ties broken by normalised form, then by origin, so ordering is total and therefore
+    // reproducible. Origin is load-bearing rather than cosmetic: stages may emit the same
+    // surface — `SOP` from orthography and from `Standard Operating Procedure (SOP)` —
+    // and without it the two would order by whichever stage happened to run first.
     keywords.sort_by(|a, b| {
         (a.kind as u8)
             .cmp(&(b.kind as u8))
             .then(b.score.total_cmp(&a.score))
             .then(a.normalised.cmp(&b.normalised))
+            .then((a.origin as u8).cmp(&(b.origin as u8)))
     });
 
     let mut next: HashMap<u8, u32> = HashMap::new();
@@ -373,12 +388,23 @@ fn is_short_all_caps(text: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn run(text: &str) -> Vec<Keyword> {
-        extract(text, &Config::default(), &Resources::default())
+    /// Built once. `Resources::default()` parses an eighty-thousand-word list, which in
+    /// a debug build costs far more than the code under test.
+    fn resources() -> &'static Resources {
+        static RESOURCES: std::sync::OnceLock<Resources> = std::sync::OnceLock::new();
+        RESOURCES.get_or_init(Resources::default)
     }
 
-    fn surfaces(text: &str, kind: Kind) -> Vec<String> {
-        run(text).into_iter().filter(|k| k.kind == kind).map(|k| k.surface).collect()
+    fn run(text: &str) -> Vec<Keyword> {
+        // Mirrors `crate::extract`: the stage no longer ranks its own output, because
+        // ranks span the stage union.
+        let mut out = extract(text, &Config::default(), resources());
+        rank_within_kind(&mut out);
+        out
+    }
+
+    fn originals(text: &str, kind: Kind) -> Vec<String> {
+        run(text).into_iter().filter(|k| k.kind == kind).map(|k| k.original_keyword).collect()
     }
 
     const SAMPLE: &str = "Column Regeneration Report. Batch DS-2291 was purified on the \
@@ -387,7 +413,7 @@ mod tests {
 
     #[test]
     fn finds_coded_identifiers() {
-        let ids = surfaces(SAMPLE, Kind::Identifier);
+        let ids = originals(SAMPLE, Kind::Identifier);
         for want in ["DS-2291", "HEK293T", "SOP-114"] {
             assert!(ids.contains(&want.to_string()), "missing {want} in {ids:?}");
         }
@@ -395,13 +421,13 @@ mod tests {
 
     #[test]
     fn finds_domain_vocabulary_as_technical() {
-        let tech = surfaces(SAMPLE, Kind::Technical);
+        let tech = originals(SAMPLE, Kind::Technical);
         assert!(tech.contains(&"chromatography".to_string()), "got {tech:?}");
     }
 
     #[test]
     fn merges_multiword_product_names() {
-        let tech = surfaces(SAMPLE, Kind::Technical);
+        let tech = originals(SAMPLE, Kind::Technical);
         assert!(
             tech.contains(&"MabSelect SuRe".to_string()),
             "the name was split into its parts: {tech:?}"
@@ -413,7 +439,7 @@ mod tests {
         // Spreadsheet rows, slide bullets and table cells are separate lines. Token
         // adjacency is not text adjacency, and merging across the gap invents terms.
         let all: Vec<String> = run("Batch Cell\nDS-2291\tHEK293T\nDS-2292\tHEK293T")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(
             !all.iter().any(|s| s.split_whitespace().count() > 1),
             "merged across rows: {all:?}"
@@ -423,7 +449,7 @@ mod tests {
     #[test]
     fn does_not_merge_runs_of_identifiers_into_a_phantom_name() {
         let all: Vec<String> = run("Samples DS-2291 DS-2292 DS-2293 were shipped.")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(
             !all.iter().any(|s| s.contains(' ')),
             "a list of codes is not a name: {all:?}"
@@ -434,7 +460,7 @@ mod tests {
     fn does_not_merge_ordinary_title_case_headings() {
         // "Column Regeneration Report" is three ordinary words carrying only positional
         // capitals. Merging it would fabricate a term that means nothing.
-        let all: Vec<String> = run(SAMPLE).into_iter().map(|k| k.surface).collect();
+        let all: Vec<String> = run(SAMPLE).into_iter().map(|k| k.original_keyword).collect();
         assert!(
             !all.iter().any(|s| s.contains("Column Regeneration")),
             "title-case heading was merged: {all:?}"
@@ -453,14 +479,14 @@ mod tests {
     #[test]
     fn bare_numbers_are_never_emitted() {
         let all: Vec<String> = run("Yield was 91.4 and 2291 units over 3 runs")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(all.is_empty(), "bare numerics carry no identifying power: {all:?}");
     }
 
     #[test]
     fn acronyms_are_kept_but_shouting_is_not() {
         let ids: Vec<String> = run("The SOP was reviewed. THIS IS A VERY LOUD HEADING LINE")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(ids.contains(&"SOP".to_string()), "got {ids:?}");
         assert!(!ids.contains(&"HEADING".to_string()), "long all-caps is shouting: {ids:?}");
     }
@@ -470,7 +496,7 @@ mod tests {
         // The precision cost of the case-aware rule, contained. "LOUD" would otherwise
         // count as absent from the wordlist purely for being capitalised.
         let shouted: Vec<String> = run("PLEASE READ THIS LOUD NOTICE NOW carefully")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(!shouted.contains(&"LOUD".to_string()), "shouting leaked through: {shouted:?}");
     }
 
@@ -478,26 +504,87 @@ mod tests {
     fn an_acronym_among_lowercase_prose_survives_a_wordlist_collision() {
         // "sop" is an ordinary English word; "SOP" in running text is not.
         let out: Vec<String> = run("The batch was released under SOP control by the team.")
-            .into_iter().map(|k| k.surface).collect();
+            .into_iter().map(|k| k.original_keyword).collect();
         assert!(out.contains(&"SOP".to_string()), "got {out:?}");
+    }
+
+    #[test]
+    fn a_common_word_shouted_in_a_short_heading_is_not_an_acronym() {
+        // The run rule alone is defeated by a two-word heading: `ARMATURE CODE` is a run
+        // of two, under the bound, so `code` (rank 1417) was promoted to an acronym and
+        // scored identically to `ELN` and `QMS` in a real document.
+        let out: Vec<String> = run("ARMATURE CODE\nStart TODAY with the team today.")
+            .into_iter().map(|k| k.original_keyword).collect();
+        for shouted in ["CODE", "TODAY"] {
+            assert!(!out.contains(&shouted.to_string()), "{shouted} survived: {out:?}");
+        }
+    }
+
+    #[test]
+    fn genuine_acronyms_survive_the_frequency_bound() {
+        // The other half. These are absent from the wordlist at any depth, so the
+        // frequency condition never fires on them.
+        let out: Vec<String> = run("The ELN, LIMS and QMS were replaced under SOP control.")
+            .into_iter().map(|k| k.original_keyword).collect();
+        for want in ["ELN", "LIMS", "QMS", "SOP"] {
+            assert!(out.contains(&want.to_string()), "missing {want} in {out:?}");
+        }
+    }
+
+    #[test]
+    fn a_possessive_is_not_a_coded_token() {
+        // `anyone’s` and `scientist’s` were the two top-ranked keywords of a real
+        // document: absent from the wordlist for want of the clitic, and paid a
+        // two-segment separator bonus for carrying the apostrophe that caused the miss.
+        let out: Vec<String> =
+            run("It is anyone\u{2019}s guess what the scientist\u{2019}s intent was here.")
+                .into_iter().map(|k| k.original_keyword).collect();
+        assert!(out.is_empty(), "a possessive was emitted as technical: {out:?}");
+    }
+
+    #[test]
+    fn inflected_ordinary_english_is_not_emitted() {
+        // Six of eighteen emissions on a real document were plurals and participles of
+        // words the wordlist already held.
+        let all: Vec<String> = run(
+            "The automations and workspaces were versioned after the handoffs completed."
+        ).into_iter().map(|k| k.normalised).collect();
+        for common in ["automations", "workspaces", "versioned", "handoffs"] {
+            assert!(!all.contains(&common.to_string()), "emitted {common}: {all:?}");
+        }
     }
 
     #[test]
     fn repeated_occurrences_are_all_recorded() {
         let out = run("Batch DS-2291 shipped. Batch DS-2291 was later recalled.");
-        let id = out.iter().find(|k| k.surface == "DS-2291").expect("identifier missing");
+        let id = out.iter().find(|k| k.original_keyword == "DS-2291").expect("identifier missing");
         assert_eq!(id.frequency, 2);
         assert_eq!(id.offsets.len(), 2);
     }
 
     #[test]
-    fn offsets_point_at_the_surface_form() {
+    fn every_offset_resolves_to_the_normalised_form() {
+        // Deliberately not `== surface`. One keyword covers one normalised form, so its
+        // offsets may point at differently-cased variants; `surface` is only the first
+        // one seen. Asserting against `surface` passes only while no fixture varies
+        // case, and would break the day one did.
         let text = "Batch DS-2291 was purified on the MabSelect SuRe column.";
         for k in run(text) {
             for span in &k.offsets {
-                assert_eq!(&text[span.clone()], k.surface, "offset does not resolve");
+                assert_eq!(text[span.clone()].to_lowercase(), k.normalised, "offset does not resolve");
             }
         }
+    }
+
+    #[test]
+    fn case_variants_are_one_finding_rather_than_several() {
+        let text = "Chromatography was used. The chromatography step ran with chromatography.";
+        let out = run(text);
+        let matches: Vec<&Keyword> =
+            out.iter().filter(|k| k.normalised == "chromatography").collect();
+        assert_eq!(matches.len(), 1, "case split one finding into several: {out:?}");
+        assert_eq!(matches[0].frequency, 3, "occurrences were lost: {:?}", matches[0]);
+        assert_eq!(matches[0].offsets.len(), 3);
     }
 
     #[test]
@@ -518,9 +605,9 @@ mod tests {
 
     #[test]
     fn features_are_retained_and_sum_within_range() {
-        let res = Resources::default();
+        let res = resources();
         for t in ["DS-2291", "chromatography", "SOP", "MabSelect"] {
-            let s = features_for(t, 1, false, &res).score(&ShapeWeights::default());
+            let s = features_for(t, 1, false, res).score(&ShapeWeights::default());
             assert!((0.0..=1.0).contains(&s), "{t} scored {s}");
         }
     }

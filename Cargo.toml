@@ -7,6 +7,16 @@ license = "MIT"
 description = "Deterministic tier-1 keyword and identifier extraction for heterogeneous document corpora"
 repository = "https://github.com/JOSHMT0744/keyword_extraction_pipeline"
 
+[features]
+default = ["cli"]
+# The `kep` binary only. Kept off the library's critical path so a consumer embedding
+# this crate does not inherit an argument parser and a JSON serialiser it never calls.
+cli = ["dep:clap", "dep:serde_json"]
+
+[[bin]]
+name = "kep"
+required-features = ["cli"]
+
 [dependencies]
 blake3 = "1"
 calamine = "0.34"
@@ -19,10 +29,13 @@ unicode-segmentation = "1"
 zip = { version = "6", default-features = false, features = ["deflate"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-serde_json = "1"
+
+clap = { version = "4", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
-blake3 = "1"
+# Non-optional here so the library's own tests can assert on serialised output even when
+# the `cli` feature is off.
 serde_json = "1"
 
 [profile.release]

@@ -89,7 +89,7 @@ fn every_fixture_reports_a_status_and_never_panics() {
 #[test]
 fn an_identifier_dense_short_document_is_not_rejected_as_too_short() {
     // simple.xlsx is ~60 characters of almost pure identifiers. It is short, and it is
-    // the single most valuable shape of document for the identifier lane. `TooShort` must
+    // the single most valuable shape of document for the identifier stage. `TooShort` must
     // mean "empty", not "brief" — gating on prose-sized length would silently discard the
     // instrument-output case entirely.
     let out = extract(&fixture("simple.xlsx"), FormatHint::Sniff, &Config::default(), &Resources::default());

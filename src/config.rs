@@ -3,10 +3,11 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Parameters for the deterministic prose heuristic that gates Lane 3.
+/// Parameters for the deterministic prose heuristic that gates Stage 3.
 ///
 /// Without it, spreadsheets emit column headers as topics and emails emit footers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProseParams {
     /// Minimum mean sentence length in tokens.
     pub min_mean_sentence_len: f32,
@@ -15,7 +16,7 @@ pub struct ProseParams {
     pub min_stopword_ratio: f32,
     /// Maximum ratio of lines that look like table or field rows.
     pub max_table_line_ratio: f32,
-    /// Minimum tokens before the topical lane is worth running at all.
+    /// Minimum tokens before the topical stage is worth running at all.
     pub min_tokens: usize,
 }
 
@@ -35,6 +36,7 @@ impl Default for ProseParams {
 /// Output is uncapped above these. A single global cutoff cannot serve both shape scores
 /// and YAKE scores — they are on unrelated scales with different distributions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Thresholds {
     pub identifier: f32,
     pub technical: f32,
@@ -54,12 +56,13 @@ impl Default for Thresholds {
     }
 }
 
-/// Weights for Lane 1's feature vector.
+/// Weights for Stage 1's feature vector.
 ///
 /// A transparent weighted sum with retained components, deliberately not a classifier:
 /// there are no labels, and a learned model would forfeit the reproducibility that
 /// motivates the whole design.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ShapeWeights {
     pub internal_caps: f32,
     pub digit_letter_mix: f32,
@@ -90,12 +93,13 @@ impl Default for ShapeWeights {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Documents shorter than this return [`crate::DocumentStatus::TooShort`].
     ///
     /// Deliberately near-zero. It means "there is nothing here at all", *not* "too short
     /// to be worth reading": an instrument report whose entire content is forty sample
-    /// codes is short in characters and is exactly the document the identifier lane
+    /// codes is short in characters and is exactly the document the identifier stage
     /// exists for. Gating it out here would discard the crate's highest-value case.
     /// "Too short for topical keyphrases" is a different question, answered by
     /// [`ProseParams::min_tokens`].
@@ -105,12 +109,27 @@ pub struct Config {
     pub no_text_layer_threshold: usize,
     /// How many of the frequency-ranked wordlist entries count as ordinary English.
     ///
-    /// The single scalar governing Lane 1's `absent_from_wordlist` feature. Measured
+    /// The single scalar governing Stage 1's `absent_from_wordlist` feature. Measured
     /// separation in the embedded list puts ordinary formal vocabulary above ~60k
     /// (`specification` 60k) and domain vocabulary below (`chromatography` 87k), so the
     /// default sits between them. Intended to be swept by the injection instrument
     /// rather than argued about.
     pub wordlist_size: usize,
+    /// How far down the frequency-ranked wordlist a word still counts as *too* ordinary
+    /// for an all-caps spelling of it to be an acronym.
+    ///
+    /// [`crate::stages::shape`] promotes a short all-caps token to an acronym so that
+    /// `SOP` is not suppressed by the ordinary word "sop". Applied without a depth bound,
+    /// the same rule promoted `CODE` and `TODAY` out of a two-word marketing heading and
+    /// ranked them above `ELN`, `LIMS` and `QMS`.
+    ///
+    /// Measured separation in the embedded list: `today` 243, `code` 1417, `source` 2148,
+    /// `labs` 8289 are shouted English; `sop` 39910 is the collision the acronym rule
+    /// exists for, and `hplc`, `eln`, `lims`, `qms` are absent at any depth. The default
+    /// sits between them. Like [`Config::wordlist_size`] it is **a value read off that
+    /// separation, not a measured optimum** — it is intended to be swept by the
+    /// injection instrument.
+    pub acronym_wordlist_depth: usize,
     pub thresholds: Thresholds,
     pub shape_weights: ShapeWeights,
     pub prose: ProseParams,
@@ -118,11 +137,18 @@ pub struct Config {
     /// forty-message thread otherwise inflates term frequency and boilerplate footers
     /// read as ubiquitous.
     pub strip_quoted_blocks: bool,
-    /// Run Lane 2 (Schwartz–Hearst definitions).
+    /// Run Stage 2 (Schwartz–Hearst definitions).
     pub enable_definitions: bool,
-    /// Run Lane 3 (YAKE), subject to the prose gate.
+    /// Run Stage 3 (YAKE), subject to the prose gate.
     pub enable_topical: bool,
     pub yake_ngram_max: usize,
+    /// Retain Stage 1's feature vector on every emitted keyword.
+    ///
+    /// Debug and tuning only, and **deliberately absent from [`Config::feed`]**: it
+    /// cannot change *which* keywords are emitted, only how much is reported about
+    /// them. Folding it into the version stamp would invalidate every cached keyword
+    /// set the moment someone ran `kep explain`.
+    pub retain_features: bool,
 }
 
 impl Default for Config {
@@ -131,6 +157,7 @@ impl Default for Config {
             min_content_length: 16,
             no_text_layer_threshold: 32,
             wordlist_size: 65_000,
+            acronym_wordlist_depth: 20_000,
             thresholds: Thresholds::default(),
             shape_weights: ShapeWeights::default(),
             prose: ProseParams::default(),
@@ -138,6 +165,7 @@ impl Default for Config {
             enable_definitions: true,
             enable_topical: true,
             yake_ngram_max: 3,
+            retain_features: false,
         }
     }
 }
@@ -154,6 +182,7 @@ impl Config {
             min_content_length,
             no_text_layer_threshold,
             wordlist_size,
+            acronym_wordlist_depth,
             thresholds,
             shape_weights,
             prose,
@@ -161,11 +190,16 @@ impl Config {
             enable_definitions,
             enable_topical,
             yake_ngram_max,
+            // Reporting-only; see the field's documentation. Bound explicitly rather
+            // than by `..` so a genuinely behavioural field added later cannot slip
+            // through unfed.
+            retain_features: _,
         } = self;
 
         h.update(&(*min_content_length as u64).to_le_bytes());
         h.update(&(*no_text_layer_threshold as u64).to_le_bytes());
         h.update(&(*wordlist_size as u64).to_le_bytes());
+        h.update(&(*acronym_wordlist_depth as u64).to_le_bytes());
 
         for f in [thresholds.identifier, thresholds.technical, thresholds.topical] {
             h.update(&f.to_le_bytes());

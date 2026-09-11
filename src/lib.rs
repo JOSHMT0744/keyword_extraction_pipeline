@@ -18,10 +18,12 @@
 pub mod canonical;
 pub mod config;
 pub mod parse;
+pub mod prose;
 pub mod error;
-pub mod lanes;
+pub mod stages;
 pub mod language;
 pub mod resources;
+pub mod serde_hex;
 pub mod tokenize;
 pub mod types;
 pub mod version;
@@ -77,6 +79,8 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
     }
 
     let (language, language_confidence) = language::detect(&canonical);
+    let english = language.as_ref().is_some_and(|l| l.fully_supported);
+    let prose = prose::assess(&canonical, raw.source, english, cfg, res);
 
     DocumentResult {
         status: DocumentStatus::Ok,
@@ -86,8 +90,49 @@ pub fn extract(bytes: &[u8], hint: FormatHint, cfg: &Config, res: &Resources) ->
         own_content_length,
         language,
         language_confidence,
-        keywords: lanes::shape::extract(&canonical, cfg, res),
+        keywords: run_stages(&canonical, &prose, cfg, res),
+        prose: Some(prose),
     }
+}
+
+/// Run every enabled stage and rank the union.
+///
+/// Stages are **complements, not substitutes** — Stage 1 emits identifiers and technical
+/// vocabulary, Stage 3 emits topical keyphrases — so their outputs are concatenated
+/// rather than selected between, and ranked once at the end. Ranking here rather than
+/// inside each stage is what keeps `rank` dense within a kind: two stages ranking
+/// themselves would each start at 0 and collide.
+///
+/// Stages may legitimately emit the same term from different evidence. Those are kept
+/// as separate records distinguished by `origin`, not merged: an orthographic guess and
+/// a definitional match are different claims, and collapsing them would discard which
+/// one was made. A consumer wanting uniqueness deduplicates on `(normalised, kind)`.
+fn run_stages(
+    canonical: &str,
+    prose: &prose::ProseVerdict,
+    cfg: &Config,
+    res: &Resources,
+) -> Vec<Keyword> {
+    let mut keywords = stages::shape::extract(canonical, cfg, res);
+
+    // Runs whatever the language. Schwartz–Hearst matches orthography, not vocabulary:
+    // `Bundesamt für Sicherheit (BSI)` resolves without a word of English. Stage 3 is the
+    // one that depends on an English stopword list, and it is gated accordingly.
+    if cfg.enable_definitions {
+        keywords.extend(stages::definition::extract(canonical, cfg, res));
+    }
+
+    // Gated, unlike Stage 2. YAKE's features are computed against an English stopword
+    // list and English sentence rhythm; run on a spreadsheet it returns column headers
+    // and run on German it returns confident nonsense. Both are worse than nothing,
+    // because nothing is visibly nothing. The gate's reasoning travels with the result
+    // so an empty topical list can say why it is empty.
+    if cfg.enable_topical && prose.is_prose {
+        keywords.extend(stages::topical::extract(canonical, cfg, res));
+    }
+
+    stages::shape::rank_within_kind(&mut keywords);
+    keywords
 }
 
 /// Regenerate the canonical text a result's offsets refer to.
