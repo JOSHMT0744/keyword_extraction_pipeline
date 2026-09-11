@@ -52,7 +52,14 @@ struct TermStats {
 }
 
 pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
-    let sentences = tokenize::sentences(text);
+    // Clauses rather than raw lines: `t_position` and `t_sentence` are both statements
+    // about where a term sits in the document's *prose*, and canonical text carries one
+    // newline per rendered line. Measured over lines, every wrapped PDF line counts as
+    // its own sentence and dispersion becomes a measure of column width.
+    //
+    // Adjacency is deliberately left alone — `is_phrase` still refuses to cross a raw
+    // newline, so joining clauses here cannot splice one table cell onto the next.
+    let sentences = tokenize::clauses(text);
     if sentences.is_empty() {
         return Vec::new();
     }

@@ -41,7 +41,7 @@ struct Pair {
 
 pub fn extract(text: &str, _cfg: &Config, res: &Resources) -> Vec<Keyword> {
     let mut pairs: Vec<Pair> = Vec::new();
-    for clause in clauses(text) {
+    for clause in tokenize::clauses(text) {
         collect_pairs(text, clause, res, &mut pairs);
     }
 
@@ -83,46 +83,6 @@ pub fn extract(text: &str, _cfg: &Config, res: &Resources) -> Vec<Keyword> {
     // Keyed traversal of an insertion-ordered list rather than the map, so output does
     // not depend on hash iteration order.
     order.into_iter().filter_map(|k| merged.remove(&k)).collect()
-}
-
-/// Sentence scope, with soft line wraps healed.
-///
-/// [`tokenize::sentences`] treats every newline as a boundary, which is right for the
-/// prose gate and for tables — a spreadsheet row genuinely is its own unit. It is wrong
-/// here. Wrapped prose breaks lines mid-clause constantly, and `high performance liquid\n
-/// chromatography (HPLC)` is one definition, not a fragment. Taking the splitter at its
-/// word would lose every definition unlucky enough to straddle a wrap, which in a PDF is
-/// most of them.
-///
-/// The distinguishing rule is the one dehyphenation already uses: a break is a *soft
-/// wrap* when the text before it did not end in sentence punctuation and the text after
-/// it begins lowercase. Anything else — a blank line, a new capitalised line, a full stop
-/// — stays a boundary.
-fn clauses(text: &str) -> Vec<Range<usize>> {
-    let sentences = tokenize::sentences(text);
-    let mut out: Vec<Range<usize>> = Vec::new();
-
-    for span in sentences {
-        let Some(previous) = out.last_mut() else {
-            out.push(span);
-            continue;
-        };
-        let ended = text[previous.clone()]
-            .trim_end()
-            .ends_with(['.', '!', '?', ':', ';']);
-        let continues = text[span.clone()]
-            .trim_start()
-            .chars()
-            .next()
-            .is_some_and(char::is_lowercase);
-
-        if !ended && continues {
-            previous.end = span.end;
-        } else {
-            out.push(span);
-        }
-    }
-    out
 }
 
 /// Find `long form (short form)` and `short form (long form)` within one clause.

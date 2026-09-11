@@ -85,19 +85,26 @@ pub fn assess(
     res: &Resources,
 ) -> ProseVerdict {
     let tokens = tokenize::tokens(text);
-    let sentences = tokenize::sentences(text);
+    // Clauses, not lines. Canonical text carries one newline per *rendered* line, so both
+    // measurements below read column width rather than prose when handed raw lines — see
+    // [`tokenize::clauses`].
+    let clauses = tokenize::clauses(text);
 
     let stopwords = tokens.iter().filter(|t| res.is_stopword(&t.lower())).count();
     let stopword_ratio = ratio(stopwords, tokens.len());
-    let mean_sentence_len = if sentences.is_empty() {
+    let mean_sentence_len = if clauses.is_empty() {
         0.0
     } else {
-        tokens.len() as f32 / sentences.len() as f32
+        tokens.len() as f32 / clauses.len() as f32
     };
 
-    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let table_like = lines.iter().filter(|l| looks_like_a_table_row(l)).count();
-    let table_line_ratio = ratio(table_like, lines.len());
+    let units: Vec<&str> = clauses
+        .iter()
+        .map(|c| text[c.clone()].trim())
+        .filter(|c| !c.is_empty())
+        .collect();
+    let table_like = units.iter().filter(|c| looks_like_a_table_row(c)).count();
+    let table_line_ratio = ratio(table_like, units.len());
 
     let verdict = |reason: ProseReason| ProseVerdict {
         is_prose: reason == ProseReason::Prose,
@@ -132,13 +139,14 @@ pub fn assess(
     verdict(ProseReason::Prose)
 }
 
-/// A line that reads as a record rather than a sentence.
+/// A clause that reads as a record rather than a sentence.
 ///
-/// Two shapes, both common in extracted text: a tab-separated row, and a short line with
+/// Two shapes, both common in extracted text: a tab-separated row, and a short unit with
 /// no terminal punctuation. The second is what a slide bullet, a form field and a table
-/// cell all look like once the layout is gone.
-fn looks_like_a_table_row(line: &str) -> bool {
-    let trimmed = line.trim();
+/// cell all look like once the layout is gone — and, when this was applied to raw lines
+/// rather than clauses, what every soft-wrapped line of a PDF looked like too.
+fn looks_like_a_table_row(unit: &str) -> bool {
+    let trimmed = unit.trim();
     if trimmed.contains('\t') {
         return true;
     }
@@ -186,6 +194,41 @@ mod tests {
         let v = assess_default(PROSE, SourceKind::Plain);
         assert!(v.is_prose, "{}", v.summary());
         assert_eq!(v.reason, ProseReason::Prose);
+    }
+
+    #[test]
+    fn prose_wrapped_one_line_per_render_is_still_prose() {
+        // The corpus failure, reduced to a fixture. `Armature_Value_Proposition.pdf`
+        // measured mean sentence 5.9 and 42% table-like lines and was rejected as
+        // `SentencesTooShort` — both numbers were reading the PDF's column width,
+        // because canonical text carries one newline per *rendered* line.
+        let wrapped: String = PROSE
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .chunks(6)
+            .map(|c| c.join(" "))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let v = assess_default(&wrapped, SourceKind::Pdf);
+        assert!(v.is_prose, "wrapped prose was rejected: {}", v.summary());
+        assert_eq!(v.reason, ProseReason::Prose);
+    }
+
+    #[test]
+    fn wrapping_prose_does_not_change_the_verdict() {
+        // Same content, two layouts. If the gate disagrees with itself the measurement
+        // is of the renderer rather than the document.
+        let flat = assess_default(PROSE, SourceKind::Pdf);
+        let wrapped_text: String = PROSE
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .chunks(6)
+            .map(|c| c.join(" "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let wrapped = assess_default(&wrapped_text, SourceKind::Pdf);
+        assert_eq!(flat.reason, wrapped.reason, "{} vs {}", flat.summary(), wrapped.summary());
     }
 
     #[test]

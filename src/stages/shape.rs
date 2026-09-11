@@ -57,11 +57,17 @@ struct Candidate {
 ///
 /// The wordlist is lowercase general English, so a case-blind membership test suppresses
 /// `SOP` because "sop" is an ordinary word. Treating every all-caps token as absent
-/// instead admits every word of a shouted heading. The discriminator is context: a
-/// genuine acronym appears among lowercase prose, while shouting comes in runs. A token
-/// is treated as an acronym only when it is short, all-caps, and *not* part of a run of
-/// three or more consecutive all-caps tokens.
-fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
+/// instead admits every word of a shouted heading.
+///
+/// Two conditions, and both are needed. **Context**: a genuine acronym appears among
+/// lowercase prose, while shouting comes in runs, so a token must not sit inside a run of
+/// three or more consecutive all-caps tokens. **Frequency**: the run rule alone is
+/// defeated by a short heading — `ARMATURE CODE` is a run of two, under the bound, and it
+/// promoted `code` (rank 1417) to an acronym scoring identically to `ELN` and `QMS`. A
+/// word common enough to sit in the first [`Config::acronym_wordlist_depth`] entries is
+/// being shouted, not abbreviated. `sop` at 39910 is well clear of that line; `hplc`,
+/// `eln`, `lims` and `qms` are absent from the list at any depth.
+fn acronym_flags(toks: &[Token<'_>], cfg_res: &Resources) -> Vec<bool> {
     const RUN: usize = 3;
     let caps: Vec<bool> = toks.iter().map(|t| is_short_all_caps(t.text) || is_long_all_caps(t.text)).collect();
     let mut out = vec![false; toks.len()];
@@ -78,7 +84,8 @@ fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
         }
         if end - i < RUN {
             for j in i..end {
-                out[j] = is_short_all_caps(toks[j].text);
+                out[j] = is_short_all_caps(toks[j].text)
+                    && !cfg_res.is_frequent_word(&toks[j].lower());
             }
         }
         i = end;
@@ -88,7 +95,7 @@ fn acronym_flags(toks: &[Token<'_>]) -> Vec<bool> {
 
 pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
     let toks = tokenize::tokens(text);
-    let acronyms = acronym_flags(&toks);
+    let acronyms = acronym_flags(&toks, res);
     let mut candidates: Vec<Candidate> = Vec::new();
 
     collect_unigrams(&toks, &acronyms, res, &mut candidates);
@@ -499,6 +506,52 @@ mod tests {
         let out: Vec<String> = run("The batch was released under SOP control by the team.")
             .into_iter().map(|k| k.original_keyword).collect();
         assert!(out.contains(&"SOP".to_string()), "got {out:?}");
+    }
+
+    #[test]
+    fn a_common_word_shouted_in_a_short_heading_is_not_an_acronym() {
+        // The run rule alone is defeated by a two-word heading: `ARMATURE CODE` is a run
+        // of two, under the bound, so `code` (rank 1417) was promoted to an acronym and
+        // scored identically to `ELN` and `QMS` in a real document.
+        let out: Vec<String> = run("ARMATURE CODE\nStart TODAY with the team today.")
+            .into_iter().map(|k| k.original_keyword).collect();
+        for shouted in ["CODE", "TODAY"] {
+            assert!(!out.contains(&shouted.to_string()), "{shouted} survived: {out:?}");
+        }
+    }
+
+    #[test]
+    fn genuine_acronyms_survive_the_frequency_bound() {
+        // The other half. These are absent from the wordlist at any depth, so the
+        // frequency condition never fires on them.
+        let out: Vec<String> = run("The ELN, LIMS and QMS were replaced under SOP control.")
+            .into_iter().map(|k| k.original_keyword).collect();
+        for want in ["ELN", "LIMS", "QMS", "SOP"] {
+            assert!(out.contains(&want.to_string()), "missing {want} in {out:?}");
+        }
+    }
+
+    #[test]
+    fn a_possessive_is_not_a_coded_token() {
+        // `anyone’s` and `scientist’s` were the two top-ranked keywords of a real
+        // document: absent from the wordlist for want of the clitic, and paid a
+        // two-segment separator bonus for carrying the apostrophe that caused the miss.
+        let out: Vec<String> =
+            run("It is anyone\u{2019}s guess what the scientist\u{2019}s intent was here.")
+                .into_iter().map(|k| k.original_keyword).collect();
+        assert!(out.is_empty(), "a possessive was emitted as technical: {out:?}");
+    }
+
+    #[test]
+    fn inflected_ordinary_english_is_not_emitted() {
+        // Six of eighteen emissions on a real document were plurals and participles of
+        // words the wordlist already held.
+        let all: Vec<String> = run(
+            "The automations and workspaces were versioned after the handoffs completed."
+        ).into_iter().map(|k| k.normalised).collect();
+        for common in ["automations", "workspaces", "versioned", "handoffs"] {
+            assert!(!all.contains(&common.to_string()), "emitted {common}: {all:?}");
+        }
     }
 
     #[test]

@@ -115,6 +115,21 @@ pub struct Config {
     /// default sits between them. Intended to be swept by the injection instrument
     /// rather than argued about.
     pub wordlist_size: usize,
+    /// How far down the frequency-ranked wordlist a word still counts as *too* ordinary
+    /// for an all-caps spelling of it to be an acronym.
+    ///
+    /// [`crate::stages::shape`] promotes a short all-caps token to an acronym so that
+    /// `SOP` is not suppressed by the ordinary word "sop". Applied without a depth bound,
+    /// the same rule promoted `CODE` and `TODAY` out of a two-word marketing heading and
+    /// ranked them above `ELN`, `LIMS` and `QMS`.
+    ///
+    /// Measured separation in the embedded list: `today` 243, `code` 1417, `source` 2148,
+    /// `labs` 8289 are shouted English; `sop` 39910 is the collision the acronym rule
+    /// exists for, and `hplc`, `eln`, `lims`, `qms` are absent at any depth. The default
+    /// sits between them. Like [`Config::wordlist_size`] it is **a value read off that
+    /// separation, not a measured optimum** — it is intended to be swept by the
+    /// injection instrument.
+    pub acronym_wordlist_depth: usize,
     pub thresholds: Thresholds,
     pub shape_weights: ShapeWeights,
     pub prose: ProseParams,
@@ -142,6 +157,7 @@ impl Default for Config {
             min_content_length: 16,
             no_text_layer_threshold: 32,
             wordlist_size: 65_000,
+            acronym_wordlist_depth: 20_000,
             thresholds: Thresholds::default(),
             shape_weights: ShapeWeights::default(),
             prose: ProseParams::default(),
@@ -166,6 +182,7 @@ impl Config {
             min_content_length,
             no_text_layer_threshold,
             wordlist_size,
+            acronym_wordlist_depth,
             thresholds,
             shape_weights,
             prose,
@@ -182,6 +199,7 @@ impl Config {
         h.update(&(*min_content_length as u64).to_le_bytes());
         h.update(&(*no_text_layer_threshold as u64).to_le_bytes());
         h.update(&(*wordlist_size as u64).to_le_bytes());
+        h.update(&(*acronym_wordlist_depth as u64).to_le_bytes());
 
         for f in [thresholds.identifier, thresholds.technical, thresholds.topical] {
             h.update(&f.to_le_bytes());

@@ -17,7 +17,7 @@ tests/fixtures/simple.pdf
               0.520  MabSelect                     x1   shape
               0.415  chromatography                x1   shape
   Topical     —      prose gate: too few tokens for statistical extraction
-                     (mean sentence 7.6 tokens, 29% stopwords, 38 tokens)
+                     (mean sentence 9.5 tokens, 29% stopwords, 38 tokens)
 ```
 
 **Contents** — [Quick start](#quick-start) · [What you get](#what-you-get) ·
@@ -316,14 +316,21 @@ the typed result back.
 ### Your documents may not be "prose"
 
 The topical stage is gated: on a spreadsheet it would emit column headers as topics, and
-on an email footer the disclaimer. Slide decks, bulleted reports and form-like PDFs are
-frequently rejected too — a real business PDF with 1 091 tokens was rejected as
-`SentencesTooShort` (mean sentence 5.9 tokens against a threshold of 8.0).
+on an email footer the disclaimer. Slide decks, bulleted reports and genuinely form-like
+PDFs are rejected too.
 
-That is the gate working, but if your corpus looks like that and you want topics
-anyway, lower `prose.min_mean_sentence_len`. The verdict is always on
-`DocumentResult::prose`, and the CLI prints it, so you never have to guess which check
-rejected a document.
+The gate measures **clauses**, not lines. This matters more than it sounds. Canonical text
+keeps one newline per *rendered* line, so a PDF's wrapped body text arrives as dozens of
+short unpunctuated fragments. Measured as lines, a 1 091-token business PDF scored a mean
+sentence length of 5.9 tokens and 42 % table-like lines, and was rejected as
+`SentencesTooShort` — both numbers were reading the document's column width. Measured as
+clauses (`tokenize::clauses`, which heals a break only when the text before it did not end
+in sentence punctuation *and* the text after it begins lowercase) the same document scores
+9.7 and 19 %, and passes.
+
+If your corpus is genuinely tabular or bulleted and you want topics anyway, lower
+`prose.min_mean_sentence_len`. The verdict is always on `DocumentResult::prose`, and the
+CLI prints it, so you never have to guess which check rejected a document.
 
 ### Match on `normalised`, not `original_keyword`
 
@@ -355,12 +362,13 @@ kep extract --config-file kep.json ./corpus
 
 | Field | Default | Purpose |
 |-------|---------|---------|
-| `wordlist_size` | 65 000 | How many frequency-ranked words count as ordinary English. **The main dial.** Lower it to treat more vocabulary as technical |
+| `wordlist_size` | 65 000 | How many frequency-ranked words count as ordinary English. **The main dial.** Lower it to treat more vocabulary as technical. The lookup reduces plurals, participles and possessives to their base form, so `automations` is matched by `automation` |
+| `acronym_wordlist_depth` | 20 000 | How far down the list a word stays too ordinary for an all-caps spelling to be an acronym. Keeps `SOP` (39 910) while rejecting a shouted `CODE` (1 417) |
 | `thresholds.identifier` | 0.55 | Emission cutoff for identifiers |
 | `thresholds.technical` | 0.38 | Emission cutoff for technical terms |
 | `thresholds.topical` | 0.15 | Upper bound for topical — YAKE is *lower is better* |
 | `shape_weights` | sums to 1.0 | Stage 1 feature weights (see `src/config.rs`) |
-| `prose` | — | Gate for Stage 3: mean sentence length 8.0, stopword ratio 0.20, table-line ratio 0.40, min tokens 120 |
+| `prose` | — | Gate for Stage 3, measured over clauses rather than rendered lines: mean sentence length 8.0, stopword ratio 0.20, table-line ratio 0.40, min tokens 120 |
 | `min_content_length` | 16 | "Nothing here at all" cutoff — not a readability floor |
 | `no_text_layer_threshold` | 32 | Chars below which a PDF counts as having no text layer |
 | `strip_quoted_blocks` | true | Strip quoted replies and signatures from email |
@@ -459,8 +467,16 @@ Corpus-relative ranking, storage, deduplication policy, triage scoring, and any 
 document worth a closer look" decision belong to the consuming system.
 
 Out of scope by design: OCR (a scanned PDF is *reported*, not silently skipped), IDF or
-any cross-document statistic, stemming (it mangles alphanumeric identifiers), and
-trusting file extensions.
+any cross-document statistic, and trusting file extensions.
+
+Stemming is *partly* in scope, and the boundary matters. Surfaces, normalised forms and
+offsets are never stemmed — that is what would mangle `DS-2291`, and it would also break
+the guarantee that an offset resolves to the keyword it belongs to. The **wordlist lookup
+key** is reduced to base forms, because the embedded list holds one surface form per
+entry: `automation` is present and `automations` is not, so without it every plural,
+participle and possessive in a document reads as technical vocabulary. Digit-bearing
+tokens are classified as identifiers before the lookup is consulted, so identifiers never
+reach it.
 
 **This library cannot prove a shortlisting funnel works.** Where keyword extraction is
 used to narrow a corpus before an expensive model-written summary, whether that actually
@@ -496,10 +512,32 @@ cargo clippy --all-targets
 Fixtures are committed, so tests need no generation step; the generator scripts are
 committed too, so fixtures can be reviewed rather than trusted as opaque binaries.
 
-Not yet built: the identifier-injection instrument that would settle whether
-`wordlist_size` should be 65 000, and the Inspec/SemEval keyphrase benchmark that would
-settle `thresholds.topical`. Until those exist, treat the defaults as reasonable
-starting points rather than measured optima.
+Not yet built:
+
+- The **identifier-injection instrument** that would settle whether `wordlist_size` should
+  be 65 000 and `acronym_wordlist_depth` 20 000. Both are values read off the separation
+  in the embedded list, not measured optima.
+- The **Inspec/SemEval keyphrase benchmark** that would settle `thresholds.topical`. Now
+  that the prose gate no longer rejects wrapped PDFs, Stage 3 produces output on real
+  documents for the first time, and the first thing it shows is that the admitted set is
+  entirely unigrams ordered close to raw frequency. That is a measurement problem, not a
+  tuning one, and it is what this instrument is for.
+- A **gold set**: 10–20 representative documents with hand-marked keywords, and a
+  precision/recall instrument over them. Without it, any change to weights or thresholds
+  is unfalsifiable, and every value in `Config` is defended by argument rather than
+  evidence.
+- **`pdf_oxide::extract_structured`** in the PDF path. `StructuredRegion` carries a
+  `RegionRole` (`BodyBlock`, `StructuralHeading`, `Header`, `Footer`, `PageNumber`,
+  `Artifact`) and a `column_index`, which would let the parser drop page furniture by role
+  rather than trusting `strip_running_headers_footers`, honour columns instead of
+  flattening them, and give the prose gate a real body-text ratio. Deferred deliberately:
+  it is PDF-only, so it puts `tests/cross_format.rs` in tension by construction; it widens
+  the surface exposed to a dependency pinned precisely because it has no output-stability
+  commitment; and it does **not** replace the soft-wrap rule, because a `BodyBlock`'s text
+  still contains newlines. It should land against the gold set, not before it.
+
+Until those exist, treat the defaults as reasonable starting points rather than measured
+optima.
 
 ## License
 

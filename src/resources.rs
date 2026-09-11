@@ -27,6 +27,9 @@ const DEFAULT_STOPWORDS: &str = include_str!("../resources/stopwords.txt");
 pub struct Resources {
     /// Words at or above the configured frequency rank. Membership means "ordinary".
     common: HashSet<String>,
+    /// The first `acronym_wordlist_depth` entries. Membership means "too ordinary for an
+    /// all-caps spelling to be an acronym".
+    frequent: HashSet<String>,
     stopwords: HashSet<String>,
     /// How many of the ranked words are active. Retained for diagnostics.
     cutoff: usize,
@@ -88,9 +91,12 @@ impl Resources {
         let ranked: Vec<String> = entries(wordlist).collect();
         let depth = ranked.len();
         let cutoff = cfg.wordlist_size.min(depth);
+        let frequent: HashSet<String> =
+            ranked.iter().take(cfg.acronym_wordlist_depth.min(depth)).cloned().collect();
 
         Self {
             common: ranked.into_iter().take(cutoff).collect(),
+            frequent,
             stopwords: entries(stopwords).collect(),
             cutoff,
             depth,
@@ -100,8 +106,30 @@ impl Resources {
     }
 
     /// Whether a lowercase token is ordinary English. Absence is a Stage 1 shape signal.
+    ///
+    /// Falls back to [`base_forms`] on a miss: the list is one surface form per entry, so
+    /// `automation` is present at rank 37543 while `automations` is not, and without this
+    /// every plural, participle and possessive in a document reads as technical
+    /// vocabulary. The reduction is applied to the *lookup key* only — surfaces,
+    /// normalised forms and offsets are untouched, and digit-bearing tokens are already
+    /// classified as identifiers before this is consulted, so nothing here can mangle
+    /// `DS-2291`.
     pub fn is_common_word(&self, lower: &str) -> bool {
         self.common.contains(lower)
+            || base_forms(lower).any(|base| self.common.contains(&base))
+    }
+
+    /// Whether a lowercase token is among the most frequent words in the list.
+    ///
+    /// Separate from [`is_common_word`] because it answers a different question: not "is
+    /// this ordinary English" but "is this so ordinary that an all-caps spelling of it is
+    /// shouting rather than an acronym". See [`crate::Config::acronym_wordlist_depth`].
+    ///
+    /// Deliberately an exact lookup with no morphology. A shouted `CODES` is caught by
+    /// the surrounding run rule; widening this would start suppressing genuine acronyms
+    /// that happen to reduce to a frequent word.
+    pub fn is_frequent_word(&self, lower: &str) -> bool {
+        self.frequent.contains(lower)
     }
 
     pub fn is_stopword(&self, lower: &str) -> bool {
@@ -113,6 +141,88 @@ impl Resources {
     pub fn wordlist_extent(&self) -> (usize, usize) {
         (self.cutoff, self.depth)
     }
+}
+
+/// Candidate base forms of a token, for the wordlist lookup only.
+///
+/// A short, explicit list rather than a stemmer. A stemmer is a dependency whose
+/// tie-breaking could move [`crate::PipelineVersion`] on an upgrade, and it produces
+/// non-words (`automat`) that a surface-form list can never match anyway. What is needed
+/// here is narrower: undo the handful of regular English endings that separate a token
+/// from an entry the list already holds.
+///
+/// The `-ise`/`-ize` fold is not cosmetic. The embedded list carries `organise` (12913)
+/// and `analyse` (21060) but not `generalise`, so British spellings are covered patchily
+/// and `generalises` was emitted as technical vocabulary.
+///
+/// Yields candidates, not a single answer: the caller accepts the first that is in the
+/// list, so an over-eager reduction costs nothing unless it happens to land on a real word.
+///
+/// **Only inflections, never derivations.** `-s`, `-ed` and `-ing` make the same word
+/// again; `-able` makes a different one. Adding `-able` would suppress `auditable` and
+/// `inspectable`, which are noise — but it would equally suppress `injectable`
+/// (`inject` 11324) and `filterable` (`filter` 9329), which are exactly the domain
+/// vocabulary this crate exists to find. Considered and rejected: the recall cost is
+/// unbounded and the precision gain is two words. The same argument rules out `-ly`,
+/// `-ness` and `-ment`.
+fn base_forms(lower: &str) -> impl Iterator<Item = String> + '_ {
+    fn push(out: &mut Vec<String>, s: String) {
+        if s.chars().count() >= 2 && !out.contains(&s) {
+            out.push(s);
+        }
+    }
+    let mut out: Vec<String> = Vec::new();
+
+    // Possessive clitic. Both the typographic and ASCII apostrophe reach here, because
+    // canonicalisation folds neither — they are not interchangeable in every context.
+    for clitic in ["\u{2019}s", "'s", "\u{2019}", "'"] {
+        if let Some(stem) = lower.strip_suffix(clitic) {
+            push(&mut out, stem.to_string());
+        }
+    }
+
+    // Regular inflections, longest suffix first so `ies` is tried before `s`.
+    if let Some(stem) = lower.strip_suffix("ies") {
+        push(&mut out, format!("{stem}y"));
+    }
+    for suffix in ["es", "ed", "ing", "s"] {
+        if let Some(stem) = lower.strip_suffix(suffix) {
+            push(&mut out, stem.to_string());
+            // `regenerated` -> `regenerate`, `filing` -> `file`.
+            if suffix != "s" {
+                push(&mut out, format!("{stem}e"));
+            }
+            // `shipped` -> `ship`, `running` -> `run`.
+            if let Some(undoubled) = undouble(stem) {
+                push(&mut out, undoubled);
+            }
+        }
+    }
+
+    // British `-ise` spellings, applied to the reductions above as well as the surface:
+    // `generalises` -> `generalise` -> `generalize`.
+    let ised: Vec<String> = std::iter::once(lower.to_string())
+        .chain(out.clone())
+        .filter_map(|w| w.strip_suffix("ise").map(|s| format!("{s}ize"))
+            .or_else(|| w.strip_suffix("isation").map(|s| format!("{s}ization")))
+            .or_else(|| w.strip_suffix("ised").map(|s| format!("{s}ized")))
+            .or_else(|| w.strip_suffix("ising").map(|s| format!("{s}izing"))))
+        .collect();
+    for w in ised {
+        push(&mut out, w);
+    }
+
+    out.into_iter()
+}
+
+/// Undo a doubled final consonant: `shipp` -> `ship`. `None` when the ending is not a
+/// doubled consonant, so `pass` is left alone.
+fn undouble(stem: &str) -> Option<String> {
+    let mut chars = stem.chars().rev();
+    let last = chars.next()?;
+    let previous = chars.next()?;
+    (last == previous && last.is_alphabetic() && !"aeiou".contains(last))
+        .then(|| stem[..stem.len() - last.len_utf8()].to_string())
 }
 
 #[cfg(test)]
@@ -162,6 +272,93 @@ mod tests {
         for w in ["chromatography", "immunoglobulin", "sepharose", "superdex", "elution"] {
             assert!(!res.is_common_word(w), "{w} must not be treated as ordinary English");
         }
+    }
+
+    #[test]
+    fn inflections_of_ordinary_words_are_ordinary() {
+        // The dominant false-positive class. The list is one surface form per entry, so
+        // `automation` is present at 37543 and `automations` is not; without reducing the
+        // lookup key, every plural and participle in a document reads as technical.
+        let res = Resources::default();
+        for w in [
+            "automations", "workspaces", "handoffs", "versioned",
+            "regenerations", "calibrations", "specifications", "analysed", "shipped",
+            "running", "companies",
+        ] {
+            assert!(res.is_common_word(w), "{w} should reduce to an ordinary word");
+        }
+
+        // Reduction can only reach entries the list actually holds. `dataset` is absent
+        // at any depth, so `datasets` stays a technical candidate — correctly, and as a
+        // reminder that this fixes lookup, not wordlist coverage.
+        assert!(!res.is_common_word("datasets"));
+    }
+
+    #[test]
+    fn possessives_are_ordinary_when_their_stem_is() {
+        // `anyone’s` and `scientist’s` were the two highest-scoring keywords in a real
+        // document, on no evidence but a clitic the wordlist does not carry.
+        let res = Resources::default();
+        for w in ["anyone\u{2019}s", "anyone's", "scientist\u{2019}s", "company's"] {
+            assert!(res.is_common_word(w), "{w} should reduce to an ordinary word");
+        }
+    }
+
+    #[test]
+    fn british_ise_spellings_reduce_to_their_ize_entries() {
+        // The list carries `organise` (12913) and `analyse` (21060) but not `generalise`,
+        // so -ise coverage is patchy and `generalises` was emitted as technical.
+        let res = Resources::default();
+        for w in ["generalise", "generalises", "generalised", "generalising"] {
+            assert!(res.is_common_word(w), "{w} should fold to its -ize entry");
+        }
+    }
+
+    #[test]
+    fn reduction_does_not_make_domain_vocabulary_look_ordinary() {
+        // The cost of the reduction, contained. If any of these acquire an ordinary base
+        // form the technical arm loses the terms it exists to find.
+        let res = Resources::default();
+        for w in [
+            "chromatography", "immunoglobulin", "sepharose", "superdex", "elution",
+            "elutions", "chromatographies",
+        ] {
+            assert!(!res.is_common_word(w), "{w} must not be treated as ordinary English");
+        }
+    }
+
+    #[test]
+    fn reduction_never_produces_a_match_from_a_stub() {
+        // A two-character floor on candidates, so `as` -> `a` and similar cannot make an
+        // arbitrary token ordinary by shrinking it into a high-frequency fragment.
+        for w in ["ies", "ing", "es", "ed"] {
+            assert!(
+                base_forms(w).all(|b| b.chars().count() >= 2),
+                "{w} produced a one-character base form"
+            );
+        }
+    }
+
+    #[test]
+    fn the_acronym_depth_is_narrower_than_the_wordlist_cutoff() {
+        // The rule that separates an acronym from a shouted common word. `sop` sits at
+        // 39910 and must stay outside the frequent band; `code` and `today` must not.
+        let res = Resources::default();
+        assert!(res.is_frequent_word("today"), "today is rank 243");
+        assert!(res.is_frequent_word("code"), "code is rank 1417");
+        assert!(!res.is_frequent_word("sop"), "sop is rank 39910 and is a real collision");
+        for absent in ["hplc", "eln", "lims", "qms"] {
+            assert!(!res.is_frequent_word(absent), "{absent} is absent at any depth");
+        }
+    }
+
+    #[test]
+    fn stopword_lookup_stays_exact() {
+        // Deliberately not widened alongside is_common_word. The stopword list is a
+        // closed set of function words, and reducing into it would swallow real ones.
+        let res = Resources::default();
+        assert!(res.is_stopword("the"));
+        assert!(!res.is_stopword("theses"), "reduction leaked into the stopword set");
     }
 
     #[test]

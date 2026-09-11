@@ -18,8 +18,11 @@ include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 /// History: 1 initial; 2 stopword list read as words rather than lines;
 /// 3 ranking hoisted out of Stage 1 so it spans the stage union;
 /// 4 Stage 2 (Schwartz–Hearst definitions) added to the union;
-/// 5 prose gate and Stage 3 (YAKE) added.
-pub const LOGIC_REVISION: u32 = 5;
+/// 5 prose gate and Stage 3 (YAKE) added;
+/// 6 prose gate and Stage 3 scoped to clauses rather than rendered lines; wordlist
+/// lookup reduces to base forms; acronyms bounded by frequency depth; the apostrophe
+/// is no longer an identifier separator.
+pub const LOGIC_REVISION: u32 = 6;
 
 /// Serialised as lowercase hex, matching the digests it sits alongside.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
