@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{lanes::shape::ShapeFeatures, prose::ProseVerdict, serde_hex, version::PipelineVersion};
+use crate::{stages::shape::ShapeFeatures, prose::ProseVerdict, serde_hex, version::PipelineVersion};
 
 /// Which parser to use. Callers that know the format should say so; `Sniff` falls back
 /// to content inspection.
@@ -34,30 +34,33 @@ pub enum Kind {
     Topical,
 }
 
-/// Which lane produced a keyword. Affects where it ranks, never whether it exists.
+/// Which stage produced a keyword. Affects where it ranks, never whether it exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Origin {
-    /// Lane 1 — shape features and wordlist absence.
+    /// Stage 1 — shape features and wordlist absence.
     Shape,
-    /// Lane 2 — Schwartz–Hearst definitional context. Higher confidence prior.
+    /// Stage 2 — Schwartz–Hearst definitional context. Higher confidence prior.
     Definition,
-    /// Lane 3 — YAKE statistical keyphrase extraction.
+    /// Stage 3 — YAKE statistical keyphrase extraction.
     Statistic,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Keyword {
-    /// A representative form as it appears in the canonical text.
+    /// The keyword as it is actually written in the document.
+    ///
+    /// Known as the *surface form* in the literature; named for what it is here, because
+    /// this is the field a reader of the output sees first.
     ///
     /// One `Keyword` covers one distinct `normalised` form, so a document containing both
     /// `Chromatography` and `chromatography` yields a single record with three offsets,
-    /// not two records — they are one finding. `surface` is the first variant seen, which
-    /// means **`surface` is not guaranteed to equal the text at every offset**. The
+    /// not two records — they are one finding. This field holds the first variant seen,
+    /// which means **it is not guaranteed to equal the text at every offset**. The
     /// invariant that does hold is on `normalised`: for every span in `offsets`,
     /// `canonical[span]`, lowercased with internal whitespace collapsed, equals
     /// `normalised`. Anything highlighting occurrences should use the offsets; anything
     /// matching should use `normalised`.
-    pub surface: String,
+    pub original_keyword: String,
     /// NFKC + casefold. Never stemmed — stemming mangles alphanumeric identifiers.
     pub normalised: String,
     pub kind: Kind,
@@ -70,12 +73,12 @@ pub struct Keyword {
     pub frequency: u32,
     /// Byte offsets into the canonical text, which [`crate::canonicalise`] regenerates.
     pub offsets: Vec<Range<usize>>,
-    /// The canonical expansion, when a definition lane resolved one: `SOP` carries
+    /// The canonical expansion, when a definition stage resolved one: `SOP` carries
     /// `Standard Operating Procedure`. Only ever set for [`Origin::Definition`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expansion: Option<String>,
-    /// Lane 1's retained feature vector, present only when [`crate::Config`]'s
-    /// `retain_features` is on. The plan calls Lane 1 "a transparent weighted sum with
+    /// Stage 1's retained feature vector, present only when [`crate::Config`]'s
+    /// `retain_features` is on. The plan calls Stage 1 "a transparent weighted sum with
     /// stored components"; this is where the components are stored, so a score can be
     /// accounted for rather than taken on trust.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,7 +113,7 @@ impl DocumentStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Language {
     pub code: String,
-    /// True when the full lane set ran. Non-English documents degrade to Lane 1 only.
+    /// True when the full stage set ran. Non-English documents degrade to Stage 1 only.
     pub fully_supported: bool,
 }
 

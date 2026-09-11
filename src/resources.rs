@@ -6,7 +6,7 @@
 //!
 //! # Why the wordlist is frequency-ranked
 //!
-//! Lane 1 asks "is this an ordinary English word". The answer is a matter of degree, and
+//! Stage 1 asks "is this an ordinary English word". The answer is a matter of degree, and
 //! the cutoff trades recall against precision directly: too inclusive a list makes genuine
 //! technical terms look ordinary and suppresses them; too small a list flags ordinary
 //! words as technical. Ranking by frequency turns that trade-off into a single scalar,
@@ -99,7 +99,7 @@ impl Resources {
         }
     }
 
-    /// Whether a lowercase token is ordinary English. Absence is a Lane 1 shape signal.
+    /// Whether a lowercase token is ordinary English. Absence is a Stage 1 shape signal.
     pub fn is_common_word(&self, lower: &str) -> bool {
         self.common.contains(lower)
     }
@@ -123,8 +123,8 @@ mod tests {
     fn ordinary_stopwords_are_recognised() {
         // Regression: the stopword file is space-separated, and reading it a line at a
         // time produced eighteen unmatchable multi-word entries instead of ~250 words.
-        // Nothing failed loudly — Lane 1 happened to reject stopwords via the wordlist
-        // instead — but the prose gate and Lane 3 both measure stopword ratio, and both
+        // Nothing failed loudly — Stage 1 happened to reject stopwords via the wordlist
+        // instead — but the prose gate and Stage 3 both measure stopword ratio, and both
         // would have measured zero.
         let res = Resources::default();
         for word in ["the", "a", "is", "and", "of", "to", "in", "that", "it"] {

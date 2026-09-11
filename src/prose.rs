@@ -1,6 +1,6 @@
 //! The deterministic prose gate.
 //!
-//! Lane 3 assumes running text. Applied to a spreadsheet it emits column headers as
+//! Stage 3 assumes running text. Applied to a spreadsheet it emits column headers as
 //! topics; applied to an email footer it emits the disclaimer. Both are confident,
 //! plausible and wrong — a failure worse than emitting nothing, because nothing is
 //! visibly nothing while a wrong topic looks like a right one.
@@ -17,7 +17,7 @@ use crate::{config::Config, parse::SourceKind, resources::Resources, tokenize};
 /// Why the gate ruled as it did. Exactly one reason, the first that applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProseReason {
-    /// Running text. Lane 3 ran.
+    /// Running text. Stage 3 ran.
     Prose,
     /// A spreadsheet or CSV. Rejected on format, not on measurement: a wide enough
     /// sheet can pass any ratio test, and the format already tells us the answer.
@@ -30,7 +30,7 @@ pub enum ProseReason {
     TooFewStopwords,
     /// Too many lines that look like table or field rows.
     TooManyTableLines,
-    /// Lane 3's statistics are tuned to English, and the document is not English.
+    /// Stage 3's statistics are tuned to English, and the document is not English.
     NotEnglish,
 }
 
@@ -44,7 +44,7 @@ impl ProseReason {
             ProseReason::SentencesTooShort => "sentences are too short to be prose",
             ProseReason::TooFewStopwords => "too few function words to be prose",
             ProseReason::TooManyTableLines => "too many lines look like table rows",
-            ProseReason::NotEnglish => "the topical lane is English-only",
+            ProseReason::NotEnglish => "the topical stage is English-only",
         }
     }
 }

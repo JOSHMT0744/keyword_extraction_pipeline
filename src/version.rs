@@ -13,12 +13,12 @@ use crate::{config::Config, resources::Resources};
 include!(concat!(env!("OUT_DIR"), "/parser_versions.rs"));
 
 /// Bumped by hand only when extraction *logic* changes in a way not captured by config
-/// or dependency versions — a new lane, an altered canonicalisation step.
+/// or dependency versions — a new stage, an altered canonicalisation step.
 ///
 /// History: 1 initial; 2 stopword list read as words rather than lines;
-/// 3 ranking hoisted out of Lane 1 so it spans the lane union;
-/// 4 Lane 2 (Schwartz–Hearst definitions) added to the union;
-/// 5 prose gate and Lane 3 (YAKE) added.
+/// 3 ranking hoisted out of Stage 1 so it spans the stage union;
+/// 4 Stage 2 (Schwartz–Hearst definitions) added to the union;
+/// 5 prose gate and Stage 3 (YAKE) added.
 pub const LOGIC_REVISION: u32 = 5;
 
 /// Serialised as lowercase hex, matching the digests it sits alongside.

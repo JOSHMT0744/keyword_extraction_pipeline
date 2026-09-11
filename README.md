@@ -57,7 +57,7 @@ if result.status.is_ok() {
     for kw in &result.keywords {
         println!(
             "{:<24} {:?}/{:?}  score={:.3} rank={} freq={}",
-            kw.surface, kw.kind, kw.origin, kw.score, kw.rank, kw.frequency,
+            kw.original_keyword, kw.kind, kw.origin, kw.score, kw.rank, kw.frequency,
         );
     }
 } else {
@@ -79,7 +79,7 @@ use keyword_extraction_pipeline::{canonicalise, Config, FormatHint};
 
 let text = canonicalise(&bytes, FormatHint::Sniff, &Config::default())?;
 let span = &result.keywords[0].offsets[0];
-assert_eq!(&text[span.clone()], result.keywords[0].surface);
+assert_eq!(&text[span.clone()], result.keywords[0].original_keyword);
 ```
 
 Canonicalisation is idempotent and deterministic, so the string is byte-identical to
@@ -131,13 +131,13 @@ Use the library API if you want the typed result back.
 
 ## Pipeline
 
-| Stage | What happens |
-|-------|--------------|
+| Step | What happens |
+|------|--------------|
 | **Parse** | Bytes → raw text. Format sniffed from magic bytes and content shape, never the extension. One backend per format behind a `TextExtractor` trait. |
 | **Canonicalise** | Newline and page-break normalisation, NFKC, typographic-hyphen folding, soft-hyphen removal, line-break dehyphenation, email quote/signature stripping, whitespace collapse. Idempotent. Every keyword offset is relative to this output. |
 | **Gates** | No text layer (scanned PDF) → `NoTextLayer`. Below `min_content_length` → `TooShort`. Both are recorded outcomes, not errors. |
-| **Language detect** | `lingua` over 7 European languages, deterministic. English runs the full lane set; other languages degrade *visibly* to Lane 1 only, recorded as `fully_supported: false`. |
-| **Lanes** | Complementary extractors (see below). All enabled lanes run; the consumer filters on `Kind` rather than a lane being selected out. |
+| **Language detect** | `lingua` over 7 European languages, deterministic. English runs the full stage set; other languages degrade *visibly* to Stage 1 only, recorded as `fully_supported: false`. |
+| **Stages** | Complementary extractors (see below). All enabled stages run; the consumer filters on `Kind` rather than a stage being selected out. |
 
 ### Formats
 
@@ -149,12 +149,12 @@ Use the library API if you want the typed result back.
 | email (.eml, .msg) | `mail-parser` | Subject and text bodies only; routing headers are identifier-shaped noise. |
 | txt, md, csv | built-in | Encoding decided at parse time. |
 
-### Lanes
+### Stages
 
-| Lane | `Origin` | `Kind` | Status |
+| Stage | `Origin` | `Kind` | Status |
 |------|----------|--------|--------|
 | **1 — shape & wordlist** | `Shape` | `Identifier`, `Technical` | **Implemented.** Transparent weighted sum over a retained feature vector (internal caps, digit/letter mix, separator segments, length, absence from the general English wordlist, short all-caps, in-document frequency). Deliberately not a classifier — there are no labels, and a learned model would forfeit reproducibility. Merges split multi-word product names (`MabSelect SuRe`) while refusing to merge title-case headings or runs of codes. |
-| **2 — definitions** | `Definition` | `Technical` | **Implemented**, gated by `enable_definitions`. Schwartz–Hearst (2003) implemented directly from the paper rather than pulled from a crate, so behaviour pins to `PipelineVersion`. Finds `long form (short form)` and `short form (long form)` within clause scope, emitting both halves with the canonical `expansion` attached. Runs whatever the language — the matching is orthographic, not lexical. Offsets record the *definition site*, not every occurrence; where Lane 1 also emitted the term, that record carries the full occurrence set. |
+| **2 — definitions** | `Definition` | `Technical` | **Implemented**, gated by `enable_definitions`. Schwartz–Hearst (2003) implemented directly from the paper rather than pulled from a crate, so behaviour pins to `PipelineVersion`. Finds `long form (short form)` and `short form (long form)` within clause scope, emitting both halves with the canonical `expansion` attached. Runs whatever the language — the matching is orthographic, not lexical. Offsets record the *definition site*, not every occurrence; where Stage 1 also emitted the term, that record carries the full occurrence set. |
 | **3 — topical** | `Statistic` | `Topical` | **Implemented**, gated by `enable_topical` *and* the prose gate. YAKE (Campos et al., 2020) implemented directly from the paper — five per-term features (casing, position, frequency normalisation, relatedness to context, sentence dispersion) combined over contiguous n-grams up to `yake_ngram_max`. Corpus-blind by construction: every feature comes from the single document. Phrases are bounded by stopwords, punctuation and line breaks. Near-duplicate phrasings are collapsed. **The default `thresholds.topical` of 0.15 is an unvalidated guess** pending the keyphrase benchmark. |
 
 Scores are comparable **within** a `Kind` and meaningless across kinds (shape scores
@@ -164,11 +164,11 @@ re-extracting.
 
 YAKE's own scores are *lower is better*, which `thresholds.topical` reflects — it is an
 upper bound, not a floor. The emitted `score` is re-signed to `1/(1+s)` so that one
-ranking function serves every lane and higher always means a stronger claim.
+ranking function serves every stage and higher always means a stronger claim.
 
 ### The prose gate
 
-Lane 3 assumes running text. On a spreadsheet it emits column headers as topics; on an
+Stage 3 assumes running text. On a spreadsheet it emits column headers as topics; on an
 email footer it emits the disclaimer. Both are confident, plausible and wrong — worse
 than emitting nothing, because nothing is visibly nothing.
 
@@ -197,16 +197,16 @@ can be moved against real numbers rather than guessed at.
 | `hash_exact` | blake3 over the raw input bytes. |
 | `hash_canonical` | blake3 over the canonical text — the natural cache key for everything downstream. |
 | `own_content_length` | Characters of canonical text. |
-| `language` / `language_confidence` | Detected language and whether the full lane set ran. |
+| `language` / `language_confidence` | Detected language and whether the full stage set ran. |
 | `keywords` | Flat, ranked, uncapped above a per-kind threshold. Filter on `kind`. |
 
-Each `Keyword` carries `surface`, `normalised` (NFKC + casefold, never stemmed),
+Each `Keyword` carries `original_keyword`, `normalised` (NFKC + casefold, never stemmed),
 `kind`, `origin`, `score`, `rank`, `frequency`, and `offsets` (byte ranges into the
 canonical text). Two optional fields are present only when they apply: `expansion`,
-the canonical long form when a definition lane resolved one, and `features`, Lane 1's
+the canonical long form when a definition stage resolved one, and `features`, Stage 1's
 retained feature vector when `Config::retain_features` is on.
 
-### Lanes may emit the same surface twice
+### Stages may emit the same term twice
 
 A term can be reached by more than one route — `SOP` from orthography, and again from
 `Standard Operating Procedure (SOP)`. **Those are kept as separate records
@@ -214,7 +214,7 @@ distinguished by `origin`, not merged.** An orthographic guess and a definitiona
 match are different claims about the same string, and collapsing them would discard
 which one was made.
 
-The cost is that `keywords` can contain duplicate surfaces within a `Kind`, and a
+The cost is that `keywords` can contain the same term twice within a `Kind`, and a
 consumer that counts naively will double-count. If you want uniqueness, deduplicate
 on `(normalised, kind)` keeping the record whose `origin` you trust most —
 `Definition` is the stronger evidence:
@@ -237,13 +237,13 @@ changes the stamp and invalidates cached keyword sets. Key fields:
 |-------|---------|---------|
 | `min_content_length` | 16 | "Nothing here at all" cutoff — deliberately near-zero, not a readability floor. |
 | `no_text_layer_threshold` | 32 | Chars below which a PDF is treated as having no text layer. |
-| `wordlist_size` | 65 000 | How many frequency-ranked words count as ordinary English. The single scalar governing Lane 1's `absent_from_wordlist` feature; intended to be swept, not argued over. |
+| `wordlist_size` | 65 000 | How many frequency-ranked words count as ordinary English. The single scalar governing Stage 1's `absent_from_wordlist` feature; intended to be swept, not argued over. |
 | `thresholds` | per-kind | Emission cutoffs for identifier / technical / topical (topical is *lower is better*). |
-| `shape_weights` | see `src/config.rs` | Lane 1 feature weights; sum to 1.0 by construction. |
-| `prose` | — | Deterministic heuristic gating Lane 3 (mean sentence length, stopword ratio, table-line ratio, minimum tokens). |
+| `shape_weights` | see `src/config.rs` | Stage 1 feature weights; sum to 1.0 by construction. |
+| `prose` | — | Deterministic heuristic gating Stage 3 (mean sentence length, stopword ratio, table-line ratio, minimum tokens). |
 | `strip_quoted_blocks` | true | Strip quoted blocks and signatures from email. |
-| `enable_definitions`, `enable_topical` | true | Lane 2 / Lane 3 switches. |
-| `yake_ngram_max` | 3 | Max phrase length for Lane 3. |
+| `enable_definitions`, `enable_topical` | true | Stage 2 / Stage 3 switches. |
+| `yake_ngram_max` | 3 | Max phrase length for Stage 3. |
 
 ## Resources
 
@@ -264,7 +264,7 @@ at build or run time). See `NOTICE` for attribution.
 It is derived from:
 
 - the crate version and a hand-bumped `LOGIC_REVISION` (for logic changes not captured
-  by config or dependencies — a new lane, an altered canonicalisation step);
+  by config or dependencies — a new stage, an altered canonicalisation step);
 - the resolved versions of extraction-relevant dependencies (`build.rs` reads these
   from `Cargo.lock`; only the crates in its `TRACKED` list, so unrelated dev-dependency
   bumps don't churn the stamp);

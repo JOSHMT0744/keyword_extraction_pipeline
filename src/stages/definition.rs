@@ -1,17 +1,17 @@
-//! Lane 2 — Schwartz–Hearst abbreviation definitions.
+//! Stage 2 — Schwartz–Hearst abbreviation definitions.
 //!
 //! Implemented directly from Schwartz & Hearst (2003) rather than pulled from a crate,
 //! so behaviour pins to [`crate::PipelineVersion`]: a dependency that quietly improved
 //! its matching would silently invalidate every stored keyword set.
 //!
-//! This lane answers a question Lane 1 structurally cannot. Lane 1 decides what a term is
+//! This stage answers a question Stage 1 structurally cannot. Stage 1 decides what a term is
 //! from its orthography, which makes `SOP` indistinguishable from the ordinary word
 //! "sop" without the case-run heuristic in [`super::shape::acronym_flags`]. A document
 //! that writes `Standard Operating Procedure (SOP)` has *told* us, and evidence beats
 //! inference. It also yields the canonical expansion, which nothing else here can.
 //!
 //! Offsets record the **definition site**, not every occurrence of the term. That is what
-//! this lane observed. Where the same surface also appears in Lane 1's output, that record
+//! this stage observed. Where the same term also appears in Stage 1's output, that record
 //! carries the full occurrence set — the two are complementary rather than redundant,
 //! which is why they are emitted separately rather than merged.
 
@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// A definition is categorical evidence rather than another weighted vote: the document
-/// stated the term itself. Scoring it on Lane 1's feature scale would be inventing a
+/// stated the term itself. Scoring it on Stage 1's feature scale would be inventing a
 /// measurement — there is nothing to measure once the text has said so outright.
 const DEFINITION_SCORE: f32 = 1.0;
 
@@ -61,7 +61,7 @@ pub fn extract(text: &str, _cfg: &Config, res: &Resources) -> Vec<Keyword> {
             let entry = merged.entry(normalised.clone()).or_insert_with(|| {
                 order.push(normalised.clone());
                 Keyword {
-                    surface: surface.to_string(),
+                    original_keyword: surface.to_string(),
                     normalised: normalised.clone(),
                     kind: Kind::Technical,
                     origin: Origin::Definition,
@@ -265,8 +265,8 @@ fn is_plausible_expansion(short: &str, long: &str) -> bool {
 
 /// Collapse internal whitespace runs to single spaces.
 ///
-/// A long form that straddles a line wrap contains a newline. `surface` keeps it, because
-/// `surface` is defined as the form *as it appears* and its offsets have to resolve back
+/// A long form that straddles a line wrap contains a newline. `original_keyword` keeps
+/// it, because that field is defined as the form *as it appears* and its offsets resolve back
 /// to the canonical text. `normalised` and `expansion` must not: they exist to be matched
 /// and displayed, and `high performance liquid\nchromatography` would never match a
 /// consumer's query for the same phrase written on one line.
@@ -324,13 +324,13 @@ mod tests {
         extract(text, &Config::default(), resources())
     }
 
-    fn surfaces(text: &str) -> Vec<String> {
-        run(text).into_iter().map(|k| k.surface).collect()
+    fn originals(text: &str) -> Vec<String> {
+        run(text).into_iter().map(|k| k.original_keyword).collect()
     }
 
     #[test]
     fn a_definition_yields_both_the_abbreviation_and_its_expansion() {
-        let out = surfaces("The batch was released under Standard Operating Procedure (SOP) 114.");
+        let out = originals("The batch was released under Standard Operating Procedure (SOP) 114.");
         assert!(out.contains(&"SOP".to_string()), "got {out:?}");
         assert!(
             out.contains(&"Standard Operating Procedure".to_string()),
@@ -351,13 +351,13 @@ mod tests {
     fn a_definition_split_by_a_line_wrap_is_still_found() {
         // Wrapped prose breaks mid-clause. Treating that break as a sentence boundary
         // would lose most real definitions in a PDF.
-        let out = surfaces("The instrument uses high performance liquid\nchromatography (HPLC) daily.");
+        let out = originals("The instrument uses high performance liquid\nchromatography (HPLC) daily.");
         assert!(out.contains(&"HPLC".to_string()), "lost to a line wrap: {out:?}");
         // The surface stays faithful to the text, newline and all, so its offsets
         // resolve; the expansion is the canonical one-line form.
         let hplc = run("The instrument uses high performance liquid\nchromatography (HPLC) daily.")
             .into_iter()
-            .find(|k| k.surface == "HPLC")
+            .find(|k| k.original_keyword == "HPLC")
             .expect("HPLC missing");
         assert_eq!(
             hplc.expansion.as_deref(),
@@ -371,10 +371,10 @@ mod tests {
         let text = "It uses high performance liquid\nchromatography (HPLC) daily.";
         let long = run(text)
             .into_iter()
-            .find(|k| k.normalised.contains("chromatography") && k.surface != "HPLC")
+            .find(|k| k.normalised.contains("chromatography") && k.original_keyword != "HPLC")
             .expect("expansion missing");
         assert_eq!(long.normalised, "high performance liquid chromatography");
-        assert!(long.surface.contains('\n'), "surface should mirror the text");
+        assert!(long.original_keyword.contains('\n'), "surface should mirror the text");
         for span in &long.offsets {
             assert_eq!(collapse(&text[span.clone()].to_lowercase()), long.normalised);
         }
@@ -384,7 +384,7 @@ mod tests {
     fn a_table_row_is_not_healed_into_the_row_above_it() {
         // The mirror image: a new capitalised line is a real boundary, and merging
         // across it would invent expansions out of neighbouring cells.
-        let out = surfaces("Sample Operating Pressure\nDS-2291 reviewed it (SOP).");
+        let out = originals("Sample Operating Pressure\nDS-2291 reviewed it (SOP).");
         assert!(
             !out.iter().any(|s| s.contains("Sample Operating Pressure")),
             "merged across a row boundary: {out:?}"
@@ -395,7 +395,7 @@ mod tests {
     fn the_window_does_not_reach_back_across_a_sentence_boundary() {
         // Without sentence scope, `SOP` would happily assemble itself out of
         // "Shipping. Order Processing" from the preceding clause.
-        let out = surfaces("Sales Order Processing was slow. The team reviewed it (SOP).");
+        let out = originals("Sales Order Processing was slow. The team reviewed it (SOP).");
         assert!(
             !out.iter().any(|s| s.contains("Sales Order Processing")),
             "the window ran past a full stop: {out:?}"
@@ -409,20 +409,20 @@ mod tests {
             "The column was replaced (2024-03-11) before the run.",
             "The release was tagged (v2.14.3) that morning.",
         ] {
-            assert!(surfaces(aside).is_empty(), "treated an aside as a definition: {aside}");
+            assert!(originals(aside).is_empty(), "treated an aside as a definition: {aside}");
         }
     }
 
     #[test]
     fn a_restatement_is_not_an_expansion() {
         // `X (X)` matches trivially and defines nothing.
-        assert!(surfaces("The report on SOP (SOP) was filed.").is_empty());
+        assert!(originals("The report on SOP (SOP) was filed.").is_empty());
     }
 
     #[test]
     fn the_first_letter_must_begin_a_word() {
         // Otherwise `SOP` would match the tail of "workshops" plus any later o and p.
-        let out = surfaces("Attendees ran workshops on process (SOP) design.");
+        let out = originals("Attendees ran workshops on process (SOP) design.");
         assert!(
             !out.iter().any(|s| s.contains("workshops")),
             "matched mid-word: {out:?}"
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn an_expansion_inside_the_parentheses_is_found_too() {
-        let out = surfaces("The instrument uses HPLC (high performance liquid chromatography).");
+        let out = originals("The instrument uses HPLC (high performance liquid chromatography).");
         assert!(out.contains(&"HPLC".to_string()), "got {out:?}");
         assert!(
             out.contains(&"high performance liquid chromatography".to_string()),
@@ -455,7 +455,7 @@ mod tests {
     fn a_term_defined_twice_is_one_record_with_both_sites() {
         let out = run("Standard Operating Procedure (SOP) applies. \
              Standard Operating Procedure (SOP) was revised.");
-        let sop = out.iter().find(|k| k.surface == "SOP").expect("SOP missing");
+        let sop = out.iter().find(|k| k.original_keyword == "SOP").expect("SOP missing");
         assert_eq!(sop.frequency, 2, "sites were not merged: {sop:?}");
         assert_eq!(sop.offsets.len(), 2);
     }

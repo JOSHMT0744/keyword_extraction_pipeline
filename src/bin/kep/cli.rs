@@ -59,7 +59,7 @@ pub struct ExtractArgs {
     #[arg(long, value_name = "N")]
     pub top: Option<usize>,
 
-    /// Include Lane 1's feature vector on every keyword.
+    /// Include Stage 1's feature vector on every keyword.
     #[arg(long)]
     pub features: bool,
 

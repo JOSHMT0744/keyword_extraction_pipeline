@@ -1,9 +1,9 @@
 //! Deterministic language detection.
 //!
-//! English is the only language whose full lane set runs. Detection exists so that a
-//! non-English document *degrades visibly* — Lane 1 still runs, since shape and
+//! English is the only language whose full stage set runs. Detection exists so that a
+//! non-English document *degrades visibly* — Stage 1 still runs, since shape and
 //! identifiers are language-independent, but the result records that the topical and
-//! definitional lanes did not. Silent degradation is the failure this crate is built to
+//! definitional stages did not. Silent degradation is the failure this crate is built to
 //! avoid, and "we never extracted topics from the French documents" is exactly the kind
 //! of omission that would otherwise never announce itself.
 //!
@@ -44,7 +44,7 @@ fn detector() -> &'static LanguageDetector {
 
 /// Returns the detected language and the detector's confidence in it.
 ///
-/// `None` for text too short to judge. The caller treats that as "run Lane 1 only",
+/// `None` for text too short to judge. The caller treats that as "run Stage 1 only",
 /// the same as a confidently non-English result.
 pub fn detect(text: &str) -> (Option<Language>, f32) {
     if text.chars().count() < MIN_CHARS_FOR_DETECTION {

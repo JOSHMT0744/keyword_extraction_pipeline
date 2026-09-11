@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Parameters for the deterministic prose heuristic that gates Lane 3.
+/// Parameters for the deterministic prose heuristic that gates Stage 3.
 ///
 /// Without it, spreadsheets emit column headers as topics and emails emit footers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub struct ProseParams {
     pub min_stopword_ratio: f32,
     /// Maximum ratio of lines that look like table or field rows.
     pub max_table_line_ratio: f32,
-    /// Minimum tokens before the topical lane is worth running at all.
+    /// Minimum tokens before the topical stage is worth running at all.
     pub min_tokens: usize,
 }
 
@@ -56,7 +56,7 @@ impl Default for Thresholds {
     }
 }
 
-/// Weights for Lane 1's feature vector.
+/// Weights for Stage 1's feature vector.
 ///
 /// A transparent weighted sum with retained components, deliberately not a classifier:
 /// there are no labels, and a learned model would forfeit the reproducibility that
@@ -99,7 +99,7 @@ pub struct Config {
     ///
     /// Deliberately near-zero. It means "there is nothing here at all", *not* "too short
     /// to be worth reading": an instrument report whose entire content is forty sample
-    /// codes is short in characters and is exactly the document the identifier lane
+    /// codes is short in characters and is exactly the document the identifier stage
     /// exists for. Gating it out here would discard the crate's highest-value case.
     /// "Too short for topical keyphrases" is a different question, answered by
     /// [`ProseParams::min_tokens`].
@@ -109,7 +109,7 @@ pub struct Config {
     pub no_text_layer_threshold: usize,
     /// How many of the frequency-ranked wordlist entries count as ordinary English.
     ///
-    /// The single scalar governing Lane 1's `absent_from_wordlist` feature. Measured
+    /// The single scalar governing Stage 1's `absent_from_wordlist` feature. Measured
     /// separation in the embedded list puts ordinary formal vocabulary above ~60k
     /// (`specification` 60k) and domain vocabulary below (`chromatography` 87k), so the
     /// default sits between them. Intended to be swept by the injection instrument
@@ -122,12 +122,12 @@ pub struct Config {
     /// forty-message thread otherwise inflates term frequency and boilerplate footers
     /// read as ubiquitous.
     pub strip_quoted_blocks: bool,
-    /// Run Lane 2 (Schwartz–Hearst definitions).
+    /// Run Stage 2 (Schwartz–Hearst definitions).
     pub enable_definitions: bool,
-    /// Run Lane 3 (YAKE), subject to the prose gate.
+    /// Run Stage 3 (YAKE), subject to the prose gate.
     pub enable_topical: bool,
     pub yake_ngram_max: usize,
-    /// Retain Lane 1's feature vector on every emitted keyword.
+    /// Retain Stage 1's feature vector on every emitted keyword.
     ///
     /// Debug and tuning only, and **deliberately absent from [`Config::feed`]**: it
     /// cannot change *which* keywords are emitted, only how much is reported about

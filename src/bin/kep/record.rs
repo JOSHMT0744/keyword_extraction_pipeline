@@ -27,7 +27,7 @@ pub struct DocumentRecord<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<&'a Language>,
     pub language_confidence: f32,
-    /// Why the topical lane did or did not run. Travels with the record so an empty
+    /// Why the topical stage did or did not run. Travels with the record so an empty
     /// `topical` list is never mistaken for a document with no topics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prose: Option<&'a ProseVerdict>,

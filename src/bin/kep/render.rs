@@ -11,9 +11,9 @@ use keyword_extraction_pipeline::{Config, DocumentResult, DocumentStatus, Keywor
 
 use crate::record::DocumentRecord;
 
-/// Widest surface form shown before truncation, so the columns stay aligned on a
-/// terminal without wrapping.
-const SURFACE_WIDTH: usize = 28;
+/// Widest keyword shown before truncation, so the columns stay aligned on a terminal
+/// without wrapping.
+const KEYWORD_WIDTH: usize = 28;
 
 pub fn jsonl(out: &mut impl Write, record: &DocumentRecord<'_>) -> io::Result<()> {
     let line = serde_json::to_string(record).expect("record is serialisable");
@@ -21,7 +21,7 @@ pub fn jsonl(out: &mut impl Write, record: &DocumentRecord<'_>) -> io::Result<()
 }
 
 pub fn csv_header(out: &mut impl Write) -> io::Result<()> {
-    writeln!(out, "path,status,kind,rank,score,frequency,surface,normalised,origin,expansion")
+    writeln!(out, "path,status,kind,rank,score,frequency,original_keyword,normalised,origin,expansion")
 }
 
 pub fn csv(out: &mut impl Write, record: &DocumentRecord<'_>) -> io::Result<()> {
@@ -41,7 +41,7 @@ pub fn csv(out: &mut impl Write, record: &DocumentRecord<'_>) -> io::Result<()> 
                 k.rank,
                 k.score,
                 k.frequency,
-                quote(&k.surface),
+                quote(&k.original_keyword),
                 quote(&k.normalised),
                 k.origin,
                 quote(k.expansion.as_deref().unwrap_or("")),
@@ -90,10 +90,10 @@ pub fn table(
                 "  {:<11} {:>5.3}  {:<width$}  x{:<3} {}",
                 head,
                 k.score,
-                truncate(&k.surface, SURFACE_WIDTH),
+                truncate(&k.original_keyword, KEYWORD_WIDTH),
                 k.frequency,
                 origin_note(k),
-                width = SURFACE_WIDTH
+                width = KEYWORD_WIDTH
             )?;
         }
     }
@@ -163,11 +163,11 @@ fn label(kind: Kind) -> &'static str {
     }
 }
 
-/// Fit a surface into its column.
+/// Fit a keyword into its column.
 ///
 /// Whitespace is collapsed first: a long form that straddled a line wrap keeps the
-/// newline in its `surface`, faithfully, and printing that raw would tear the table in
-/// half. The JSON keeps the real thing.
+/// newline in `original_keyword`, faithfully, and printing that raw would tear the
+/// table in half. The JSON keeps the real thing.
 fn truncate(s: &str, width: usize) -> String {
     let s = s.split_whitespace().collect::<Vec<_>>().join(" ");
     if s.chars().count() <= width {
@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn a_wrapped_surface_does_not_tear_the_table_in_half() {
+    fn a_wrapped_keyword_does_not_tear_the_table_in_half() {
         assert_eq!(truncate("liquid\nchromatography", 40), "liquid chromatography");
     }
 

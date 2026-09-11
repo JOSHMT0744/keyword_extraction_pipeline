@@ -1,8 +1,8 @@
-//! Lane 3 — YAKE topical keyphrase extraction.
+//! Stage 3 — YAKE topical keyphrase extraction.
 //!
 //! Implemented directly from Campos et al., *YAKE! Keyword extraction from single
 //! documents using multiple local features* (Information Sciences, 2020), for the same
-//! reason as Lane 2: behaviour has to pin to [`crate::PipelineVersion`], and a dependency
+//! reason as Stage 2: behaviour has to pin to [`crate::PipelineVersion`], and a dependency
 //! that quietly improved its scoring would invalidate every stored keyword set without
 //! changing the stamp.
 //!
@@ -80,7 +80,7 @@ pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
         .into_iter()
         .map(|(score, c)| Keyword {
             frequency: c.offsets.len() as u32,
-            surface: c.surface,
+            original_keyword: c.surface,
             normalised: c.normalised,
             kind: Kind::Topical,
             origin: Origin::Statistic,
@@ -95,9 +95,9 @@ pub fn extract(text: &str, cfg: &Config, res: &Resources) -> Vec<Keyword> {
 
 /// Re-sign a YAKE score for the shared ranking function.
 ///
-/// [`super::shape::rank_within_kind`] sorts descending, because for every other lane a
+/// [`super::shape::rank_within_kind`] sorts descending, because for every other stage a
 /// higher score is a stronger claim. YAKE's is the reverse. Rather than special-casing
-/// the sort — which would be a trap for anyone adding a fourth lane — the score is mapped
+/// the sort — which would be a trap for anyone adding a fourth stage — the score is mapped
 /// to `1 / (1 + s)`, which is monotonically decreasing in `s`, lands in `(0, 1]` like
 /// every other score in the crate, and preserves the ordering exactly.
 fn to_keyword_score(yake: f32) -> f32 {
@@ -217,7 +217,7 @@ struct Candidate {
 /// stopword or punctuation.
 ///
 /// Stopwords bound a phrase rather than joining it: `regeneration of the column` is two
-/// candidates, not one four-word phrase. Line breaks bound it for the same reason Lane 1
+/// candidates, not one four-word phrase. Line breaks bound it for the same reason Stage 1
 /// refuses to merge across them — token adjacency in the vector is not adjacency on the
 /// page. Punctuation bounds it because a comma is a clause boundary: `resumed, since`
 /// is two clauses touching, not a phrase, and joining them also makes the candidate's
@@ -390,7 +390,7 @@ mod tests {
         than one used occasionally for a year.";
 
     /// Built once. `Resources::default()` parses an eighty-thousand-word list, which in
-    /// a debug build costs far more than the lane under test.
+    /// a debug build costs far more than the stage under test.
     fn resources() -> &'static Resources {
         static RESOURCES: std::sync::OnceLock<Resources> = std::sync::OnceLock::new();
         RESOURCES.get_or_init(Resources::default)
@@ -406,13 +406,13 @@ mod tests {
         extract(text, &cfg, resources())
     }
 
-    fn surfaces(text: &str) -> Vec<String> {
+    fn originals(text: &str) -> Vec<String> {
         run(text).into_iter().map(|k| k.normalised).collect()
     }
 
     #[test]
     fn the_documents_subject_ranks_above_its_incidental_vocabulary() {
-        let out = surfaces(DOC);
+        let out = originals(DOC);
         let rank = |s: &str| out.iter().position(|k| k == s);
         let subject = rank("regeneration").or(rank("column regeneration")).expect("no subject");
         let incidental = rank("months").or(rank("weeks")).unwrap_or(usize::MAX);
@@ -421,7 +421,7 @@ mod tests {
 
     #[test]
     fn stopwords_are_never_emitted_and_never_join_a_phrase() {
-        for s in surfaces(DOC) {
+        for s in originals(DOC) {
             for word in s.split_whitespace() {
                 assert!(
                     !resources().is_stopword(word),
@@ -435,7 +435,7 @@ mod tests {
     fn phrases_do_not_cross_punctuation() {
         // `resumed, since` is two clauses touching, not a phrase — and a candidate whose
         // span covers a comma it does not contain has broken offsets as well.
-        let out = surfaces(DOC);
+        let out = originals(DOC);
         assert!(
             !out.iter().any(|s| s == "resumed since"),
             "built a phrase across a comma: {out:?}"
@@ -444,8 +444,8 @@ mod tests {
 
     #[test]
     fn phrases_do_not_cross_a_line_break() {
-        // The same rule as Lane 1: token adjacency is not adjacency on the page.
-        let out = surfaces("Column regeneration\nResin lifetime report follows here now.");
+        // The same rule as Stage 1: token adjacency is not adjacency on the page.
+        let out = originals("Column regeneration\nResin lifetime report follows here now.");
         assert!(
             !out.iter().any(|s| s.contains("regeneration resin")),
             "merged across a line break: {out:?}"
@@ -457,7 +457,7 @@ mod tests {
         // `resin` and `Resin` are one finding, not two. Distinct phrases that merely
         // share a word — `regeneration` and `regeneration sequence` — are not duplicates
         // and must both survive.
-        let out = surfaces(DOC);
+        let out = originals(DOC);
         let mut seen = std::collections::HashSet::new();
         for s in &out {
             assert!(seen.insert(s.clone()), "the same finding reported twice: {s:?}");
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn scores_are_re_signed_so_a_better_keyword_scores_higher() {
-        // YAKE is lower-is-better; every other lane is higher-is-better, and one shared
+        // YAKE is lower-is-better; every other stage is higher-is-better, and one shared
         // ranking function sorts them all.
         let out = run(DOC);
         for pair in out.windows(2) {
@@ -500,7 +500,7 @@ mod tests {
     fn ngrams_are_bounded_by_the_configured_maximum() {
         for k in run(DOC) {
             assert!(
-                k.surface.split_whitespace().count() <= Config::default().yake_ngram_max,
+                k.original_keyword.split_whitespace().count() <= Config::default().yake_ngram_max,
                 "phrase too long: {k:?}"
             );
         }

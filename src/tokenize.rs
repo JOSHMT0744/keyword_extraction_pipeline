@@ -2,7 +2,7 @@
 //!
 //! Deliberately *not* UAX#29 word segmentation. The Unicode algorithm breaks on hyphens
 //! and slashes, which would shred `DS-2291` and `SOP-114/rev3` into fragments — the exact
-//! tokens the identifier lane exists to find. Internal separators between alphanumerics
+//! tokens the identifier stage exists to find. Internal separators between alphanumerics
 //! are held together; only leading and trailing punctuation is trimmed.
 
 use std::ops::Range;

@@ -87,7 +87,7 @@ fn xlsx_keeps_string_cells_and_drops_bare_numerics() {
     assert!(out.text.contains("Runs"), "sheet name missing: {:?}", out.text);
     assert!(
         !out.text.contains("91.4"),
-        "bare numerics would flood the identifier lane: {:?}",
+        "bare numerics would flood the identifier stage: {:?}",
         out.text
     );
 }
@@ -108,7 +108,7 @@ fn email_takes_subject_and_body_but_not_message_id() {
     assert!(out.text.contains("regenerated per SOP-114"));
     assert!(
         !out.text.contains("QQ7F3K2M"),
-        "message-id must not reach the lanes: {:?}",
+        "message-id must not reach the stages: {:?}",
         out.text
     );
 }

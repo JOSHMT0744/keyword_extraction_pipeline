@@ -1,6 +1,6 @@
 //! `kep explain` — account for one document's scores.
 //!
-//! The plan describes Lane 1 as "a transparent weighted sum with stored components".
+//! The plan describes Stage 1 as "a transparent weighted sum with stored components".
 //! Transparency that is computed and discarded is not transparency, so this command is
 //! the other half of that claim: for every candidate it prints each feature's raw value,
 //! the weight applied to it, the contribution that produced, and whether the total
@@ -14,7 +14,7 @@ use std::io::{self, Write};
 use keyword_extraction_pipeline::{
     canonicalise,
     config::ShapeWeights,
-    lanes::shape::{self, ShapeFeatures},
+    stages::shape::{self, ShapeFeatures},
     Config, DocumentStatus, FormatHint, Keyword, Kind, Resources,
 };
 
@@ -70,9 +70,9 @@ pub fn run(args: &ExplainArgs, cfg: &Config, out: &mut impl Write) -> io::Result
     Ok(0)
 }
 
-/// Re-run Lane 1 with both thresholds at zero, then subtract what was emitted.
+/// Re-run Stage 1 with both thresholds at zero, then subtract what was emitted.
 ///
-/// Re-running rather than instrumenting the lane keeps the explain path and the extract
+/// Re-running rather than instrumenting the stage keeps the explain path and the extract
 /// path the same code: anything shown here was produced by the scorer that actually runs.
 fn write_near_misses(
     out: &mut impl Write,
@@ -120,7 +120,7 @@ fn write_candidate(
     writeln!(
         out,
         "    {mark} {:<28} {:?}  score {:.3}  x{}",
-        k.surface, k.kind, k.score, k.frequency
+        k.original_keyword, k.kind, k.score, k.frequency
     )?;
     let Some(f) = &k.features else { return Ok(()) };
     for (name, value, weight) in components(f, w) {
