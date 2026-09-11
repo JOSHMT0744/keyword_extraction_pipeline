@@ -6,6 +6,15 @@ rust-version = "1.88"
 license = "MIT"
 description = "Deterministic tier-1 keyword and identifier extraction for heterogeneous document corpora"
 repository = "https://github.com/JOSHMT0744/keyword_extraction_pipeline"
+documentation = "https://docs.rs/keyword_extraction_pipeline"
+readme = "README.md"
+keywords = ["keyword-extraction", "nlp", "yake", "deterministic", "text-mining"]
+categories = ["text-processing", "science"]
+# Input documents and working notes. `corpus/` holds real customer files, so it must never
+# reach a published package; the rest is session material a consumer has no use for.
+# `tests/fixtures/` and `scripts/` deliberately stay in, so a published crate can run its
+# own suite and its resources can be regenerated rather than trusted.
+exclude = ["corpus/", ".planning/", "TODO.md", "keywords.*"]
 
 [features]
 default = ["cli"]
