@@ -12,6 +12,7 @@
 //! other's exclusive items as unused.
 #![allow(dead_code)]
 
+pub mod baseline;
 pub mod carrier;
 pub mod data;
 pub mod rng;

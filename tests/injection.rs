@@ -21,7 +21,7 @@ mod harness;
 
 use keyword_extraction_pipeline::{Config, Resources};
 
-use harness::{carrier, data, score, tier_of, Tier, TierResources};
+use harness::{baseline, carrier, data, score, tier_of, Tier, TierResources};
 
 fn tier_res() -> &'static TierResources {
     static R: std::sync::OnceLock<TierResources> = std::sync::OnceLock::new();
@@ -179,6 +179,104 @@ fn per_tier_recall_is_printed_for_a_human_to_read() {
             recall * 100.0,
             stat.as_identifier,
             stat.as_technical
+        );
+    }
+}
+
+
+#[test]
+fn dates_and_phone_numbers_are_never_emitted() {
+    // Gated only for the classes that measure 0 on the first real run of this harness —
+    // per the plan, gate what is actually zero rather than asserting a floor nobody has
+    // checked. Hand-simulating shape's feature weights predicted both: an ISO 8601 date
+    // (e.g. 2024-03-11) scores separator_segments 0.12 + absent_from_wordlist 0.40 = 0.52,
+    // just under the 0.55 identifier threshold, and a phone number's digit-only fragments
+    // (+1, 2000000) both die in is_candidate — the same structural rejection as a bare
+    // numeral. Confirmed, not just predicted: see the per-scheme table this test prints.
+    let report = gate_report();
+    for scheme in ["iso8601-date", "phone-number"] {
+        let stat = report.distractor_schemes.get(scheme).cloned().unwrap_or_default();
+        println!("{scheme}: {}/{} emitted (must be 0)", stat.emitted, stat.planted);
+        assert!(stat.planted > 0, "no {scheme} distractors were planted — check the corpus");
+        assert_eq!(stat.emitted, 0, "{scheme} was emitted {} time(s), expected never", stat.emitted);
+    }
+}
+
+#[test]
+fn distractor_emission_is_reported_per_scheme() {
+    // Not gated — several of these are legitimately ambiguous. `v2.14.3` in a release
+    // note, or a git short hash in a commit reference, are defensibly identifiers; marking
+    // them MustNotEmit would stack the deck as surely as a naive all-easy plant set does
+    // in the other direction. What matters is that the rate is visible, per scheme, on
+    // every run — including the URL finding this instrument predicted and then confirmed:
+    // a reference URL (https://example.com/docs/ref-4417) scores separator_segments 0.12 +
+    // digit_letter_mix 0.25 + unusual_length 0.03 + absent_from_wordlist 0.40 = 0.80,
+    // comfortably clearing the identifier threshold. Recorded in TODO.md rather than
+    // hidden by narrowing the distractor set to avoid it.
+    let report = gate_report();
+    for (scheme, stat) in &report.distractor_schemes {
+        let rate = if stat.planted == 0 { f32::NAN } else { stat.emitted as f32 / stat.planted as f32 };
+        println!("{scheme}: {}/{} emitted ({:.0}%)", stat.emitted, stat.planted, rate * 100.0);
+    }
+    assert!(!report.distractor_schemes.is_empty(), "no distractor schemes were scored at all");
+}
+
+#[test]
+fn stage_one_beats_both_trivial_baselines_on_distractor_rejection() {
+    // The complexity-earns-its-keep gate. Relative, not absolute — needs no measured
+    // target, and is safe to gate from day one. A baseline that matched or beat Stage 1
+    // here would mean the seven-feature weighted sum was buying nothing a two-line
+    // digit-bearing regex, or a bare "is it in the wordlist" check, didn't already have.
+    let docs = carrier::generate(GATE_SEED, GATE_DOC_COUNT, &corpus_pools(), tier_res());
+    let res = Resources::default();
+    let cfg = Config::default();
+
+    let stage1 = score::score_corpus(&docs, &res, cfg.thresholds.identifier, cfg.thresholds.technical);
+    let digit_report = {
+        let mut r = score::Report::default();
+        for doc in &docs {
+            score::score_doc(doc, &baseline::digit_bearing(doc), &mut r);
+        }
+        r
+    };
+    let wordlist_report = {
+        let mut r = score::Report::default();
+        for doc in &docs {
+            score::score_doc(doc, &baseline::absent_from_wordlist(doc, &res), &mut r);
+        }
+        r
+    };
+
+    let distractor_hits = |r: &score::Report| -> usize { r.distractor_schemes.values().map(|s| s.emitted).sum() };
+    let (s1, d1, w1) = (distractor_hits(&stage1), distractor_hits(&digit_report), distractor_hits(&wordlist_report));
+    println!("distractor hits — stage1={s1} digit_regex={d1} wordlist_only={w1}");
+
+    assert!(s1 < d1, "Stage 1 ({s1}) did not beat the digit-bearing baseline ({d1}) on distractors");
+    assert!(s1 < w1, "Stage 1 ({s1}) did not beat the wordlist-only baseline ({w1}) on distractors");
+}
+
+#[test]
+fn neither_trivial_baseline_recovers_the_unreachable_tier() {
+    // The wordlist-only baseline has no acronym handling and no digit/common-word
+    // carve-out, so this checks it doesn't accidentally do better than Stage 1 on the
+    // one tier Stage 1 structurally cannot reach.
+    let docs = carrier::generate(GATE_SEED, GATE_DOC_COUNT, &corpus_pools(), tier_res());
+    let res = Resources::default();
+
+    let mut digit_r = score::Report::default();
+    let mut wordlist_r = score::Report::default();
+    for doc in &docs {
+        score::score_doc(doc, &baseline::digit_bearing(doc), &mut digit_r);
+        score::score_doc(doc, &baseline::absent_from_wordlist(doc, &res), &mut wordlist_r);
+    }
+
+    for (name, report) in [("digit_bearing", &digit_r), ("absent_from_wordlist", &wordlist_r)] {
+        let unreachable = report.tiers.get(&Tier::Unreachable).cloned().unwrap_or_default();
+        println!("{name}: Unreachable {}/{} recalled", unreachable.recalled, unreachable.planted);
+        assert_eq!(
+            unreachable.recalled, 0,
+            "{name} recovered {} Unreachable-tier plant(s), expected none",
+            unreachable.recalled
         );
     }
 }

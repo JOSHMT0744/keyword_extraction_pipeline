@@ -1,0 +1,112 @@
+# Injection source: Generated from the E.164 international phone number format, not mined from any list
+# URL: n/a
+# Licence: n/a — generated data, format spec only
+# Mined: 2026-09-11. GENERATED: deterministic template x counter over a fixed set of country codes, not random.
+# Register: any
+# Scheme: phone-number
+#
+# Columns: surface	register	scheme
+# The harness (tests/injection_harness/tiers.rs) computes difficulty tier from the
+# surface itself, at fixed wordlist depth — it is never read from this file.
+#
+# Regenerate with scripts/fetch_injection_tiers.sh
++1 2000000	any	phone-number
++1 2000007	any	phone-number
++1 2000014	any	phone-number
++1 2000021	any	phone-number
++1 2000028	any	phone-number
++1 2000035	any	phone-number
++1 2000042	any	phone-number
++1 2000049	any	phone-number
++1 2000056	any	phone-number
++1 2000063	any	phone-number
++1 2000070	any	phone-number
++1 2000077	any	phone-number
++1 2000084	any	phone-number
++1 2000091	any	phone-number
++1 2000098	any	phone-number
++1 2000105	any	phone-number
++1 2000112	any	phone-number
++1 2000119	any	phone-number
++1 2000126	any	phone-number
++1 2000133	any	phone-number
++44 3000000	any	phone-number
++44 3000007	any	phone-number
++44 3000014	any	phone-number
++44 3000021	any	phone-number
++44 3000028	any	phone-number
++44 3000035	any	phone-number
++44 3000042	any	phone-number
++44 3000049	any	phone-number
++44 3000056	any	phone-number
++44 3000063	any	phone-number
++44 3000070	any	phone-number
++44 3000077	any	phone-number
++44 3000084	any	phone-number
++44 3000091	any	phone-number
++44 3000098	any	phone-number
++44 3000105	any	phone-number
++44 3000112	any	phone-number
++44 3000119	any	phone-number
++44 3000126	any	phone-number
++44 3000133	any	phone-number
++49 4000000	any	phone-number
++49 4000007	any	phone-number
++49 4000014	any	phone-number
++49 4000021	any	phone-number
++49 4000028	any	phone-number
++49 4000035	any	phone-number
++49 4000042	any	phone-number
++49 4000049	any	phone-number
++49 4000056	any	phone-number
++49 4000063	any	phone-number
++49 4000070	any	phone-number
++49 4000077	any	phone-number
++49 4000084	any	phone-number
++49 4000091	any	phone-number
++49 4000098	any	phone-number
++49 4000105	any	phone-number
++49 4000112	any	phone-number
++49 4000119	any	phone-number
++49 4000126	any	phone-number
++49 4000133	any	phone-number
++33 5000000	any	phone-number
++33 5000007	any	phone-number
++33 5000014	any	phone-number
++33 5000021	any	phone-number
++33 5000028	any	phone-number
++33 5000035	any	phone-number
++33 5000042	any	phone-number
++33 5000049	any	phone-number
++33 5000056	any	phone-number
++33 5000063	any	phone-number
++33 5000070	any	phone-number
++33 5000077	any	phone-number
++33 5000084	any	phone-number
++33 5000091	any	phone-number
++33 5000098	any	phone-number
++33 5000105	any	phone-number
++33 5000112	any	phone-number
++33 5000119	any	phone-number
++33 5000126	any	phone-number
++33 5000133	any	phone-number
++61 6000000	any	phone-number
++61 6000007	any	phone-number
++61 6000014	any	phone-number
++61 6000021	any	phone-number
++61 6000028	any	phone-number
++61 6000035	any	phone-number
++61 6000042	any	phone-number
++61 6000049	any	phone-number
++61 6000056	any	phone-number
++61 6000063	any	phone-number
++61 6000070	any	phone-number
++61 6000077	any	phone-number
++61 6000084	any	phone-number
++61 6000091	any	phone-number
++61 6000098	any	phone-number
++61 6000105	any	phone-number
++61 6000112	any	phone-number
++61 6000119	any	phone-number
++61 6000126	any	phone-number
++61 6000133	any	phone-number

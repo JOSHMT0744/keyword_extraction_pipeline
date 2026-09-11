@@ -165,5 +165,22 @@ for t in templates:
 " >> "$OUT/distractors/urls.tsv"
 echo "  wrote $(grep -vc '^#' "$OUT/distractors/urls.tsv") entries"
 
+echo "-- phone numbers (GENERATED, not mined — see header) --"
+header "$OUT/distractors/phone_numbers.tsv" \
+  "Generated from the E.164 international phone number format, not mined from any list" \
+  "n/a" \
+  "n/a — generated data, format spec only" \
+  "any" "phone-number" \
+  "GENERATED: deterministic template x counter over a fixed set of country codes, not random."
+python3 -c "
+codes = ['+1', '+44', '+49', '+33', '+61']
+n = 2000000
+for c in codes:
+    for i in range(20):
+        print(f'{c} {n+i*7}	any	phone-number')
+    n += 1000000
+" >> "$OUT/distractors/phone_numbers.tsv"
+echo "  wrote $(grep -vc '^#' "$OUT/distractors/phone_numbers.tsv") entries"
+
 echo
 echo "done. Review the diff before committing — this is developer-run, output-committed data."
